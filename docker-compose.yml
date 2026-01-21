@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:///finance_app.db
+    # For local development persist the sqlite DB and allow live edits
+    volumes:
+      - ./:/app
+
+# Optional named volume approach for production (uncomment if needed)
+# volumes:
+#   finance_data: {}

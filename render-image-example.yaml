@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: FinanzasPersonales-Image
+    env: docker
+    plan: starter
+    image: youruser/finanzas-personales:latest
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        value: postgres://user:pass@host:5432/dbname
