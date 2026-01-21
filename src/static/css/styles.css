@@ -1,0 +1,45 @@
+/* Global styles for Finanzas Personales UI */
+body { background: #f5f7fb; }
+.card { box-shadow: 0 6px 18px rgba(23,39,84,0.06); }
+.kpi { font-size: 1.25rem; font-weight: 700; }
+.kpi.small { font-size: 0.9rem; font-weight: 600; color: #495057; }
+.kpi.muted { color: #6c757d; font-weight: 600; }
+.kpi-currency { font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+.small-muted { color:#6c757d; }
+
+/* Index page tweaks */
+.card.centered { max-width: 760px; margin: 14px auto 40px auto; box-shadow: 0 6px 18px rgba(23, 39, 84, 0.08); }
+.logo { font-weight: 700; color: #1f6feb; }
+
+/* Balance KPI grid */
+.kpi-grid { display:flex; gap:18px; align-items:flex-end; flex-wrap:wrap; }
+.kpi-block { min-width:120px; }
+.kpi-label { font-size:0.85rem; color:#6c757d; }
+.kpi-value { font-size:1.25rem; font-weight:700; }
+.kpi-small { font-size:0.95rem; }
+
+/* Filter block improvements */
+.filters-row .form-label { font-size: 0.85rem; }
+.filters-row .form-control, .filters-row .form-select { min-width: 0; }
+#view { white-space: nowrap; }
+@media (max-width: 576px) {
+  .filters-row .col-4, .filters-row .col-sm-4 { flex: 0 0 100%; max-width: 100%; }
+  #view { width: 100%; }
+}
+
+/* Small table tweaks */
+.table-sm td, .table-sm th { vertical-align: middle; }
+
+/* Category card styles */
+.category-grid { display:flex; gap:16px; flex-wrap:wrap; }
+.category-card { flex: 1 1 320px; display:flex; align-items:center; gap:16px; padding:18px; border-radius:12px; color:#08263a; box-shadow:0 8px 20px rgba(2,6,23,0.06); min-width:260px; }
+.category-card .icon { width:56px; height:56px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:20px; color:white; flex:0 0 56px; }
+.category-card .meta { flex:1; }
+.category-card .title { font-weight:700; font-size:1.05rem; }
+.category-card .subtitle { font-size:0.85rem; color:rgba(0,0,0,0.6); }
+.category-card.ingreso { background: linear-gradient(90deg,#d7f0ff,#bfe8ff); }
+.category-card.ingreso .icon{ background: #1f6feb; }
+.category-card.gasto { background: linear-gradient(90deg,#e6fbe8,#d1f9d6); }
+.category-card.gasto .icon{ background: #28a745; }
+
+.view-toggle { margin-bottom:12px; }

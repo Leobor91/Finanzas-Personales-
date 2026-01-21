@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Categorías</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="/static/css/styles.css">
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <h1 class="mb-0">Categorías</h1>
+                <div class="btn-group">
+                    <a href="/" class="btn btn-outline-secondary btn-sm">Ver Finanzas</a>
+                    <a href="/ui/reports" class="btn btn-outline-secondary btn-sm"> Ver Reportes</a>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label">Filtrar por tipo</label>
+                    <select id="filterType" class="form-select">
+                        <option value="all">Todos</option>
+                        <option value="Ingreso">Ingreso</option>
+                        <option value="Gasto">Gasto</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <label class="form-label">Agregar categoría</label>
+                    <div class="input-group">
+                        <select id="newType" class="form-select" style="max-width:120px;">
+                            <option value="Ingreso">Ingreso</option>
+                            <option value="Gasto">Gasto</option>
+                        </select>
+                        <input id="newIcon" class="form-control" placeholder="Icono (emoji o URL)" style="max-width:160px;">
+                        <input id="newName" class="form-control" placeholder="Nombre de categoría">
+                        <button id="addBtn" class="btn btn-primary">Agregar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="listArea">
+                {% if initial_categories %}
+                    <div class="category-grid">
+                        {% for c in initial_categories %}
+                            <div class="category-card {{ c.type|lower }}">
+                                  <div class="icon">{% if c.icon %}{% if c.icon.startswith('http') %}<img src="{{ c.icon }}" alt="icon" style="width:36px;height:36px;border-radius:50%">{% else %}{{ c.icon }}{% endif %}{% else %}{% if c.type == 'Ingreso' %}💰{% else %}🍽️{% endif %}{% endif %}</div>
+                                <div class="meta">
+                                    <div class="title">{{ c.name }}</div>
+                                    <div class="subtitle">ID: {{ c.id }} · Tipo: {{ c.type }}</div>
+                                </div>
+                                <div class="ms-auto">
+                                    <div class="btn-group" role="group">
+                                        <button class='btn btn-sm btn-outline-primary edit-btn' data-id='{{ c.id }}'>Editar</button>
+                                        <button class='btn btn-sm btn-outline-danger del-btn' data-id='{{ c.id }}'>Eliminar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+      
+
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+      
+
+            async function fetchCategories(){
+                const res = await fetch('/categories/all');
+                const data = await res.json();
+                try{ console.log('categories fetched', data); }catch(e){}
+                return data;
+            }
+
+            function renderCards(categories){
+                const wrap = document.createElement('div');
+                wrap.className = 'category-grid';
+                for(const c of categories){
+                    const card = document.createElement('div');
+                    card.className = `category-card ${c.type.toLowerCase()}`;
+                    card.innerHTML = `
+                        <div class="icon">${c.type === 'Ingreso' ? '💰' : '🍽️'}</div>
+                        <div class="meta">
+                            <div class="title">${escapeHtml(c.name)}</div>
+                            <div class="subtitle">ID: ${c.id} · Tipo: ${c.type}</div>
+                        </div>
+                        <div class="ms-auto">
+                            <div class="btn-group" role="group">
+                                <button class='btn btn-sm btn-outline-primary edit-btn' data-id='${c.id}'>Editar</button>
+                                <button class='btn btn-sm btn-outline-danger del-btn' data-id='${c.id}'>Eliminar</button>
+                            </div>
+                        </div>
+                    `;
+                    wrap.appendChild(card);
+                }
+                return wrap;
+            }
+
+            function escapeHtml(unsafe){
+                return unsafe
+                    .replaceAll('&','&amp;')
+                    .replaceAll('<','&lt;')
+                    .replaceAll('>','&gt;')
+                    .replaceAll('"','&quot;')
+                    .replaceAll("'","&#039;");
+            }
+
+            function bindActions(container){
+                container.querySelectorAll('.del-btn').forEach(btn=>{
+                    btn.onclick = async ()=>{
+                        const id = btn.dataset.id;
+                        if(!confirm('¿Eliminar categoría?')) return;
+                        await fetch(`/categories/${id}`,{method:'DELETE'});
+                        load();
+                    }
+                });
+                container.querySelectorAll('.edit-btn').forEach(btn=>{
+                    btn.onclick = (e)=>{
+                        const id = btn.dataset.id;
+                        const name = prompt('Nuevo nombre de categoría:');
+                        if(!name) return;
+                        fetch(`/categories/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}).then(()=>load());
+                    }
+                });
+            }
+
+            let lastList = [];
+            function renderLast(){
+                const filter = document.getElementById('filterType').value;
+                const list = filter === 'all' ? lastList : lastList.filter(c=>c.type===filter);
+                const area = document.getElementById('listArea');
+                area.innerHTML = '';
+                area.appendChild(renderCards(list));
+                bindActions(area);
+            }
+
+            async function load(){
+                lastList = await fetchCategories();
+                renderLast();
+            }
+
+            document.getElementById('filterType').onchange = () => renderLast();
+            document.getElementById('addBtn').onclick = async ()=>{
+                const type = document.getElementById('newType').value;
+                const name = document.getElementById('newName').value.trim();
+                if(!name) return alert('Nombre requerido');
+                await fetch('/categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,name})});
+                document.getElementById('newName').value='';
+                load();
+            };
+
+            load();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Finanzas Personales — Reportes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Reportes</h1>
+        <div>
+          <a href="/" class="btn btn-outline-secondary btn-sm me-2">Ver Finanzas</a>
+          <a href="/categories/all" class="btn btn-outline-secondary btn-sm">Ver Categorías</a>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-5">
+          <div class="card p-3">
+            <div class="mb-2 small-muted">Filtro</div>
+            <div class="row g-2 align-items-end filters-row">
+              <div class="col-12 col-sm-4">
+                <label class="form-label">Vista</label>
+                <select id="view" class="form-select">
+                  <option value="month">Ver Por Mes</option>
+                  <option value="year">Ver Por Año</option>
+                </select>
+              </div>
+              <div class="col-6 col-sm-4" id="month-col">
+                <label class="form-label">Mes</label>
+                <select id="month" class="form-select">
+                  <option value="01">Enero</option>
+                  <option value="02">Febrero</option>
+                  <option value="03">Marzo</option>
+                  <option value="04">Abril</option>
+                  <option value="05">Mayo</option>
+                  <option value="06">Junio</option>
+                  <option value="07">Julio</option>
+                  <option value="08">Agosto</option>
+                  <option value="09">Septiembre</option>
+                  <option value="10">Octubre</option>
+                  <option value="11">Noviembre</option>
+                  <option value="12">Diciembre</option>
+                </select>
+              </div>
+              <div class="col-6 col-sm-4">
+                <label class="form-label">Año (YYYY)</label>
+                <select id="year" class="form-select"></select>
+              </div>
+              <div class="col-6 col-sm-4">
+                <label class="form-label">Moneda</label>
+                <select id="currency" class="form-select">
+                  <option value="COP">COP (Pesos Colombianos)</option>
+                  <option value="USD">USD (Dólares)</option>
+                  <option value="EUR">EUR (Euros)</option>
+                </select>
+              </div>
+              <div class="col-6 col-sm-4" id="fx-col" style="display:none">
+                <label class="form-label" id="fx-label">Tasa (1 USD = X COP)</label>
+                <input id="fx-rate" class="form-control" type="number" step="0.01" value="3800">
+              </div>
+              <div class="col-12 mt-2">
+                <label class="form-label">Categoría (opcional)</label>
+                <select id="report-category" class="form-select">
+                  <option value="">Todas</option>
+                </select>
+              </div>
+            </div>
+            <div class="row mt-2">
+              <div class="col-12 d-grid">
+                <button id="load-balance" class="btn btn-primary">Cargar</button>
+              </div>
+            </div>
+
+            <hr>
+            <div id="balance-area">
+              <div class="kpi-grid">
+                <div class="kpi-block">
+                  <div class="kpi-label">Ingresos</div>
+                  <div id="ingresos" class="kpi-value text-success kpi-currency">-</div>
+                </div>
+                <div class="kpi-block">
+                  <div class="kpi-label">Gastos</div>
+                  <div id="gastos" class="kpi-value text-danger kpi-currency">-</div>
+                </div>
+                <div class="kpi-block">
+                  <div class="kpi-label">Neto</div>
+                  <div id="neto" class="kpi-value kpi-currency">-</div>
+                </div>
+                <div class="kpi-block">
+                  <div class="kpi-label">Mes Anterior (Neto)</div>
+                  <div id="previous-net" class="kpi-small kpi-currency kpi-muted">-</div>
+                </div>
+                <div class="kpi-block">
+                  <div class="kpi-label">Acumulado (Año)</div>
+                  <div id="cumulative-net" class="kpi-value kpi-currency">-</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3 mt-3">
+            <h6 class="mb-2">Gastos por Categoría</h6>
+            <div id="cat-loading" class="text-center py-3">Cargando...</div>
+            <canvas id="catChart" style="max-height:300px; display:none"></canvas>
+            <div id="cat-empty" class="text-muted" style="display:none">No hay gastos registrados.</div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card p-3">
+            <h6>Detalle por Categoría</h6>
+            <div class="table-responsive">
+              <table class="table table-sm" id="cat-table">
+                <thead>
+                  <tr><th>Categoría</th><th class="text-end">Total</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card p-3 mt-3" id="monthly-details">
+            <h6>Top 5 Gastos del Mes</h6>
+            <div class="table-responsive">
+              <table class="table table-sm" id="top5-table">
+                <thead><tr><th>Fecha</th><th>Categoria</th><th>Descripción</th><th class="text-end">Monto</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <hr>
+            <h6>Ingresos/Gastos por Día (Mes)</h6>
+            <canvas id="dailyChart" style="max-height:300px; display:none"></canvas>
+            <div id="daily-empty" class="text-muted" style="display:none">No hay datos para el mes seleccionado.</div>
+          </div>
+
+          <div class="card p-3 mt-3" id="year-chart-card">
+            <h6>Totales Mensuales (Año)</h6>
+            <canvas id="yearChart" style="max-height:300px; display:none"></canvas>
+            <div id="year-empty" class="text-muted" style="display:none">No hay datos para el año seleccionado.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    let catChart = null;
+    let yearChart = null;
+
+    const numberFormatter = new Intl.NumberFormat(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    function fmt(n){ return numberFormatter.format(Number(n)); }
+
+    function getConversionFactor(){
+      const cur = document.getElementById('currency') ? document.getElementById('currency').value : 'COP';
+      if(cur === 'COP') return 1.0;
+      const rate = Number(document.getElementById('fx-rate').value) || 1.0; // rate = X COP per 1 USD/EUR
+      return 1.0 / rate; // convert from COP to selected currency
+    }
+
+    function currencySymbol(){
+      const cur = document.getElementById('currency') ? document.getElementById('currency').value : 'COP';
+      if(cur==='USD') return '$ ';
+      if(cur==='EUR') return '€ ';
+      return '$ ';
+    }
+
+    function formatCurrencyAmount(n){
+      const factor = getConversionFactor();
+      return currencySymbol() + fmt(Number(n) * factor);
+    }
+
+    function clearReportUI(){
+      try{ if(yearChart){ yearChart.destroy(); yearChart = null; } }catch(e){}
+      try{ if(dailyChart){ dailyChart.destroy(); dailyChart = null; } }catch(e){}
+      try{ if(catChart){ catChart.destroy(); catChart = null; } }catch(e){}
+      const yCanvas = document.getElementById('yearChart'); if(yCanvas) yCanvas.style.display='none';
+      const dCanvas = document.getElementById('dailyChart'); if(dCanvas) dCanvas.style.display='none';
+      const cCanvas = document.getElementById('catChart'); if(cCanvas) cCanvas.style.display='none';
+      const yearEmpty = document.getElementById('year-empty'); if(yearEmpty) yearEmpty.style.display='none';
+      const dailyEmpty = document.getElementById('daily-empty'); if(dailyEmpty) dailyEmpty.style.display='none';
+      const catLoading = document.getElementById('cat-loading'); if(catLoading) catLoading.style.display='none';
+      const catEmpty = document.getElementById('cat-empty'); if(catEmpty) catEmpty.style.display='none';
+      // clear tables
+      const catTbody = document.querySelector('#cat-table tbody'); if(catTbody) catTbody.innerHTML = '';
+      const topTbody = document.querySelector('#top5-table tbody'); if(topTbody) topTbody.innerHTML = '';
+      const yearTable = document.getElementById('year-month-table'); if(yearTable && yearTable.parentNode) yearTable.parentNode.removeChild(yearTable);
+      const totalsEl = document.getElementById('year-totals'); if(totalsEl) totalsEl.innerHTML = '';
+      const catEl = document.getElementById('year-exp-cat'); if(catEl) catEl.innerHTML = '';
+      // reset KPIs
+      const ingresosEl = document.getElementById('ingresos'); const gastosEl = document.getElementById('gastos'); const netoEl = document.getElementById('neto');
+      if(ingresosEl) ingresosEl.innerText = '-'; if(gastosEl) gastosEl.innerText = '-'; if(netoEl) netoEl.innerText = '-';
+      const prevEl = document.getElementById('previous-net'); if(prevEl) prevEl.innerText = '-';
+      const cumEl = document.getElementById('cumulative-net'); if(cumEl) cumEl.innerText = '-';
+    }
+
+    async function loadBalance(){
+      const view = document.getElementById('view').value;
+      const month = document.getElementById('month').value;
+      const year = document.getElementById('year').value;
+      const y = year;
+      const ingresosEl = document.getElementById('ingresos');
+      const gastosEl = document.getElementById('gastos');
+      const netoEl = document.getElementById('neto');
+      // hide both charts and clear previous state to avoid stale visuals
+      try{
+        try{ if(yearChart){ yearChart.destroy(); yearChart = null; } }catch(e){}
+        try{ if(dailyChart){ dailyChart.destroy(); dailyChart = null; } }catch(e){}
+        document.getElementById('yearChart').style.display = 'none';
+        document.getElementById('dailyChart').style.display = 'none';
+        document.getElementById('year-empty').style.display = 'none';
+        document.getElementById('daily-empty').style.display = 'none';
+          if(view==='month'){
+            const res = await fetch(`/reports/balance?month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`);
+            const json = await res.json();
+            if(res.status===200){
+              ingresosEl.innerText = formatCurrencyAmount(json.ingresos);
+              gastosEl.innerText = formatCurrencyAmount(json.gastos);
+              netoEl.innerText = formatCurrencyAmount(json.neto);
+              // show previous month net and cumulative
+              const prevEl = document.getElementById('previous-net');
+              const cumEl = document.getElementById('cumulative-net');
+              if(prevEl) prevEl.innerText = formatCurrencyAmount(json.previous_net || 0);
+              if(cumEl) cumEl.innerText = formatCurrencyAmount(json.cumulative_net || 0);
+            } else {
+            ingresosEl.innerText = '-'; gastosEl.innerText='-'; netoEl.innerText='-';
+            alert('Error cargando balance: ' + (json.error||JSON.stringify(json)));
+          }
+          // Ensure yearly chart is not shown
+          if(yearChart){ yearChart.destroy(); yearChart = null; }
+          document.getElementById('yearChart').style.display = 'none';
+          // load top5 for the month (optionally filtered by category)
+          const selectedCat = document.getElementById('report-category').value;
+          loadTop5(month, y, selectedCat);
+          // also load daily series for the month
+          loadMonthlyDailySeries(month, year);
+        } else {
+            // year view: aggregate each month totals
+          // Ensure daily chart is not shown
+          if(dailyChart){ dailyChart.destroy(); dailyChart = null; }
+          document.getElementById('dailyChart').style.display = 'none';
+          ingresosEl.innerText = '-'; gastosEl.innerText='-'; netoEl.innerText='-';
+            const json = await loadYearlySeries(year);
+            if(json){
+              // set KPIs from yearly totals returned by backend
+              ingresosEl.innerText = formatCurrencyAmount(json.total_ingresos);
+              gastosEl.innerText = formatCurrencyAmount(json.total_gastos);
+              netoEl.innerText = formatCurrencyAmount(json.total_neto);
+            }
+        }
+      }catch(err){
+        ingresosEl.innerText = '-'; gastosEl.innerText='-'; netoEl.innerText='-';
+        alert('Error de red: ' + err.message);
+      }
+    }
+
+    async function loadCategories(){
+      const loading = document.getElementById('cat-loading');
+      const canvas = document.getElementById('catChart');
+      const empty = document.getElementById('cat-empty');
+      const tbody = document.querySelector('#cat-table tbody');
+      loading.style.display='block'; canvas.style.display='none'; empty.style.display='none';
+      try{
+        const month = document.getElementById('month') ? document.getElementById('month').value : '';
+        const year = document.getElementById('year') ? document.getElementById('year').value : '';
+        const params = new URLSearchParams();
+        if(month) params.set('month', month);
+        if(year) params.set('year', year);
+        const res = await fetch('/reports/categories?' + params.toString());
+        const json = await res.json();
+        loading.style.display='none';
+        tbody.innerHTML='';
+        if(res.status!==200 || !json || json.length===0){
+          empty.style.display='block';
+          if(catChart){ catChart.destroy(); catChart=null; }
+          return;
+        }
+        // fill table
+          for(const r of json){
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td'); td1.innerText = r.category;
+            const td2 = document.createElement('td'); td2.className='text-end'; td2.innerText = formatCurrencyAmount(r.total);
+            tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr);
+          }
+        // build chart
+        const labels = json.map(x=>x.category);
+        const data = json.map(x=>x.total);
+        canvas.style.display='block';
+        const ctx = canvas.getContext('2d');
+        if(catChart){ catChart.destroy(); }
+        catChart = new Chart(ctx, {type:'pie', data:{labels, datasets:[{data, backgroundColor: labels.map((_,i)=>`hsl(${i*40%360}deg 65% 55%)`)}]}});
+      }catch(err){
+        loading.style.display='none';
+        empty.style.display='block';
+        console.error(err);
+      }
+    }
+
+    async function loadTop5(month, year, category){
+      const tbody = document.querySelector('#top5-table tbody');
+      tbody.innerHTML='';
+      try{
+        let url = `/reports/top-expenses?month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}&limit=5`;
+        if(category) url += `&category=${encodeURIComponent(category)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if(res.status!==200){ return; }
+        for(const r of json){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${r.date}</td><td>${r.category}</td><td>${r.description||''}</td><td class='text-end'>${fmt(r.amount)}</td>`;
+          tbody.appendChild(tr);
+        }
+      }catch(err){ console.error(err); }
+    }
+
+    let dailyChart = null;
+    async function loadMonthlyDailySeries(month, year){
+      try{
+        const res = await fetch(`/reports/daily?month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`);
+        const json = await res.json();
+        if(res.status!==200){ throw new Error(json.error||'Error al obtener datos diarios'); }
+        // json may be either an object keyed by day or a structured {days, ingresos, gastos}
+        let days = [];
+        let ingresos = [];
+        let gastos = [];
+        if(json.days && Array.isArray(json.days)){
+          days = json.days;
+          ingresos = json.ingresos || days.map(()=>0);
+          gastos = json.gastos || days.map(()=>0);
+        } else {
+          // object keyed by day
+          days = Object.keys(json).sort();
+          for(const d of days){ ingresos.push(Number(json[d].Ingreso||0)); gastos.push(Number(json[d].Gasto||0)); }
+        }
+        const canvas = document.getElementById('dailyChart');
+        const empty = document.getElementById('daily-empty');
+        const hasData = ingresos.some(v=>v>0) || gastos.some(v=>v>0);
+        if(!hasData){ empty.style.display='block'; canvas.style.display='none'; if(dailyChart){ dailyChart.destroy(); dailyChart=null; } return; }
+        empty.style.display='none'; canvas.style.display='block';
+        const ctx = canvas.getContext('2d');
+        if(dailyChart){ dailyChart.destroy(); }
+          dailyChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: days, datasets: [{label:'Ingresos', data: ingresos.map(v=>Number(v) * getConversionFactor()), backgroundColor:'rgba(40,167,69,0.6)'},{label:'Gastos', data: gastos.map(v=>Number(v) * getConversionFactor()), backgroundColor:'rgba(220,53,69,0.6)'}] },
+            options: { responsive:true, scales:{ y:{ beginAtZero:true } }, plugins: { tooltip: { callbacks: { label: function(context){ return currencySymbol() + fmt(context.parsed.y); } } } } }
+          });
+      }catch(e){ console.error(e); const canvas = document.getElementById('dailyChart'); const empty = document.getElementById('daily-empty'); empty.style.display='block'; canvas.style.display='none'; if(dailyChart){ dailyChart.destroy(); dailyChart=null; } }
+    }
+
+    async function loadReportCategories(){
+      const sel = document.getElementById('report-category');
+      sel.innerHTML = '<option value="">Todas</option>';
+      try{
+        const res = await fetch('/categories?type=Gasto');
+        const json = await res.json();
+        if(res.status===200 && Array.isArray(json)){
+          for(const c of json){
+            const opt = document.createElement('option'); opt.value=c.name; opt.innerText=c.name; sel.appendChild(opt);
+          }
+        }
+      }catch(e){ console.error(e); }
+    }
+
+    async function loadYearlySeries(year){
+      try{
+        const res = await fetch(`/reports/yearly?year=${encodeURIComponent(year)}`);
+        const json = await res.json();
+        if(res.status!==200){ throw new Error(json.error||'Error al obtener datos'); }
+        const months = json.months || Array.from({length:12}, (_,i)=>String(i+1).padStart(2,'0'));
+        const ingresos = json.ingresos || months.map(()=>0);
+        const gastos = json.gastos || months.map(()=>0);
+        const netos = json.netos || months.map(()=>0);
+
+        // build monthly table view inside year-chart-card
+        const card = document.getElementById('year-chart-card');
+        const canvas = document.getElementById('yearChart');
+        const empty = document.getElementById('year-empty');
+        // create or update a simple table listing months
+        let table = document.getElementById('year-month-table');
+        if(!table){
+          table = document.createElement('table');
+          table.id = 'year-month-table';
+          table.className = 'table table-sm mt-2';
+          table.innerHTML = '<thead><tr><th>Mes</th><th class="text-end">Ingresos</th><th class="text-end">Gastos</th><th class="text-end">Neto</th></tr></thead><tbody></tbody>';
+          card.appendChild(table);
+        }
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        for(let i=0;i<months.length;i++){
+          const tr = document.createElement('tr');
+          const mn = months[i];
+          const tdM = document.createElement('td'); tdM.innerText = mn;
+          const tdI = document.createElement('td'); tdI.className='text-end'; tdI.innerText = formatCurrencyAmount(ingresos[i]||0);
+          const tdG = document.createElement('td'); tdG.className='text-end'; tdG.innerText = formatCurrencyAmount(gastos[i]||0);
+          const tdN = document.createElement('td'); tdN.className='text-end'; tdN.innerText = formatCurrencyAmount(netos[i]||0);
+          tr.appendChild(tdM); tr.appendChild(tdI); tr.appendChild(tdG); tr.appendChild(tdN);
+          tbody.appendChild(tr);
+        }
+
+        // show totals and expenses by category
+        let totalsEl = document.getElementById('year-totals');
+        if(!totalsEl){
+          totalsEl = document.createElement('div'); totalsEl.id='year-totals'; totalsEl.className='mt-3'; card.appendChild(totalsEl);
+        }
+        totalsEl.innerHTML = `<div><strong>Total Ingresos:</strong> ${formatCurrencyAmount(json.total_ingresos||0)} &nbsp; <strong>Total Gastos:</strong> ${formatCurrencyAmount(json.total_gastos||0)} &nbsp; <strong>Total Neto:</strong> ${formatCurrencyAmount(json.total_neto||0)}</div>`;
+
+        let catEl = document.getElementById('year-exp-cat');
+        if(!catEl){ catEl = document.createElement('div'); catEl.id='year-exp-cat'; catEl.className='mt-2'; card.appendChild(catEl); }
+        const cats = json.expenses_by_category || [];
+        if(cats.length===0){ 
+          catEl.innerHTML = '<div class="text-muted">No hay gastos por categoría en el año.</div>'; 
+          // hide category chart if present
+          try{ if(catChart){ catChart.destroy(); catChart = null; } }catch(e){}
+          const catCanvas = document.getElementById('catChart'); if(catCanvas) catCanvas.style.display='none';
+        }
+        else {
+          const rows = cats.map(c=>`<div><strong>${c.category}</strong>: ${formatCurrencyAmount(c.total)}</div>`).join('');
+          catEl.innerHTML = `<h6 class="mt-3">Gastos por Categoría (Año)</h6>${rows}`;
+        }
+        // build monthly chart of ingresos/gastos
+        try{ if(yearChart){ yearChart.destroy(); yearChart = null; } }catch(e){}
+        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const labels = months.map(m => {
+          const idx = parseInt(m,10) - 1;
+          return monthNames[idx] || m;
+        });
+        const factor = getConversionFactor();
+        const ingresosData = ingresos.map(v => Number(v) * factor);
+        const gastosData = gastos.map(v => Number(v) * factor);
+        const hasData = ingresosData.some(v=>v>0) || gastosData.some(v=>v>0);
+        if(!hasData){
+          // hide chart if no data
+          canvas.style.display='none';
+          empty.style.display='block';
+        } else {
+          empty.style.display='none';
+          canvas.style.display='block';
+          const ctx = canvas.getContext('2d');
+          yearChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [
+                { label: 'Ingresos', data: ingresosData, backgroundColor: 'rgba(40,167,69,0.6)' },
+                { label: 'Gastos', data: gastosData, backgroundColor: 'rgba(220,53,69,0.6)' }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: { y: { beginAtZero:true } },
+              plugins: { tooltip: { callbacks: { label: function(context){ return currencySymbol() + fmt(context.parsed.y); } } } }
+            }
+          });
+        }
+        return json;
+      }catch(e){
+        console.error(e);
+        const canvas = document.getElementById('yearChart');
+        const empty = document.getElementById('year-empty');
+        empty.style.display='block'; canvas.style.display='none'; if(yearChart){ yearChart.destroy(); yearChart=null; }
+        return null;
+      }
+    }
+
+    document.getElementById('load-balance').addEventListener('click', async ()=>{ 
+      clearReportUI();
+      await Promise.all([ loadBalance(), loadCategories(), loadReportCategories() ]);
+    });
+    document.getElementById('view').addEventListener('change', (e)=>{
+      const view = e.target.value;
+      document.getElementById('month-col').style.display = (view==='month') ? 'block' : 'none';
+      // destroy/hide charts not relevant to the selected view
+      if(view === 'month'){
+        if(yearChart){ yearChart.destroy(); yearChart = null; }
+        document.getElementById('yearChart').style.display = 'none';
+      } else {
+        if(dailyChart){ dailyChart.destroy(); dailyChart = null; }
+        document.getElementById('dailyChart').style.display = 'none';
+      }
+      // Reload data for the new view
+      loadBalance(); loadCategories();
+    });
+
+    async function populateYears(){
+      try{
+        const res = await fetch('/reports/years');
+        const years = await res.json();
+        const sel = document.getElementById('year');
+        sel.innerHTML = '';
+        if(Array.isArray(years) && years.length>0){
+          for(const y of years){ const opt = document.createElement('option'); opt.value=y; opt.innerText=y; sel.appendChild(opt); }
+        } else {
+          // fallback: current year
+          const y0 = (new Date()).getFullYear(); const opt = document.createElement('option'); opt.value=y0; opt.innerText=y0; sel.appendChild(opt);
+        }
+      }catch(e){ console.error(e); }
+    }
+    // initial load
+    // show/hide month based on view and load
+    document.getElementById('month-col').style.display = 'block';
+    populateYears().then(()=>{ loadBalance(); loadCategories(); loadReportCategories(); });
+
+    // Currency control events
+    const currencyEl = document.getElementById('currency');
+    const fxCol = document.getElementById('fx-col');
+    if(currencyEl){
+      currencyEl.addEventListener('change', (e)=>{
+        const cur = e.target.value;
+        if(cur === 'COP') fxCol.style.display = 'none'; else fxCol.style.display = 'block';
+        // try to fetch latest fx rates and populate fx-rate
+        fetch(`/fx/latest?base=COP&symbols=USD,EUR`).then(r=>r.json()).then(obj=>{
+          if(obj && obj.rates){
+            if(cur==='USD' && obj.rates.USD){
+              // obj.rates.USD is amount of USD per 1 COP -> invert to COP per 1 USD
+              const rate = 1 / Number(obj.rates.USD);
+              document.getElementById('fx-rate').value = Math.round(rate);
+            }
+            if(cur==='EUR' && obj.rates.EUR){
+              const rate = 1 / Number(obj.rates.EUR);
+              document.getElementById('fx-rate').value = Math.round(rate);
+            }
+          }
+        }).catch(err=>{ console.warn('FX lookup failed', err); });
+        // refresh data displays
+        loadBalance(); loadCategories();
+      });
+    }
+    const fxRateEl = document.getElementById('fx-rate');
+    if(fxRateEl){ fxRateEl.addEventListener('change', ()=>{ loadBalance(); loadCategories(); }); }
+    </script>
+  </body>
+</html>
