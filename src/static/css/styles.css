@@ -43,3 +43,75 @@ body { background: #f5f7fb; }
 .category-card.gasto .icon{ background: #28a745; }
 
 .view-toggle { margin-bottom:12px; }
+
+/* Settings page tweaks */
+.settings-card { max-width: 880px; margin: 20px auto 48px auto; }
+.page-actions { display:flex; gap:8px; align-items:center; }
+.page-actions .btn { white-space: nowrap; }
+
+/* Disabled/stop cursor helper for anchor-like buttons */
+.btn-stop-cursor { cursor: not-allowed; pointer-events: none; opacity: 0.65; }
+
+@media (max-width: 576px) {
+  .settings-card { margin: 10px; padding: 12px; }
+  .page-actions { gap:6px; }
+}
+
+/* Shared header (sized per design) */
+.site-header { position: sticky; top: 40px; background: #fff; z-index: 1030; box-shadow: 0 1px 4px rgba(10,20,40,0.04); }
+.site-header .container { padding-top: 0.5rem !important; padding-bottom: 3.5rem !important; }
+.site-header .logo { font-size: 1.05rem; }
+.site-header .small-muted { font-size: 0.85rem; }
+.site-header .page-actions .btn { margin-left: 6px; }
+
+/* Make sure page content is pushed below the taller header */
+.content-offset { padding-top: 116px; }
+
+@media (max-width: 768px) {
+  .content-offset { padding-top: 140px; }
+  .site-header .page-actions { flex-wrap:wrap; gap:6px; }
+}
+
+/* Movement row colors: use light backgrounds + dark text for good contrast */
+.table-success td { background-color: #b7f3d1 !important; color: #0b5130 !important; }
+.table-danger td { background-color: #f1baba !important; color: #6b1414 !important; }
+.mov-amount-positive { color: #0b5130; font-weight:700; }
+.mov-amount-negative { color: #6b1414; font-weight:700; }
+/* small sign before amount */
+.mov-sign { display:inline-block; width:18px; text-align:right; margin-right:8px; }
+
+/* Action buttons inside colored rows: use white backgrounds and colored outlines for readability */
+.history-actions .btn { background: rgba(255,255,255,0.95); color: #111; border: 1px solid rgba(0,0,0,0.08); box-shadow: none; }
+.history-actions .btn:hover { background: #ffffff; }
+.history-actions .btn:focus { box-shadow: 0 0 0 0.12rem rgba(31,111,235,0.15); }
+.history-actions .btn-edit { border-color: #1f6feb; color: #1f6feb; }
+.history-actions .btn-delete { border-color: #d9534f; color: #d9534f; }
+
+/* Ensure small text/links remain readable on the row backgrounds */
+.table-success td a, .table-success td button { color: inherit; }
+.table-danger td a, .table-danger td button { color: inherit; }
+
+/* Prevent action buttons and amounts from overlapping; reserve space for actions */
+.table td .btn { padding: .25rem .5rem; min-width: 44px; font-size: .85rem; }
+.table td .btn + .btn { margin-left: .35rem; }
+.table td.text-end { white-space: nowrap; vertical-align: middle; }
+.table td.actions { min-width: 140px; white-space: nowrap; }
+
+/* Account balance badges (improve contrast and legibility) */
+#accounts-summary .badge {
+  background: #ffffff;
+  color: #07293a;
+  border: 1px solid rgba(7,41,58,0.08);
+  padding: 0.5rem 0.8rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 12px rgba(7,41,58,0.04);
+  margin-right: 0.5rem;
+}
+#accounts-summary .badge strong { font-size: 1.05rem; margin-left: 0.45rem; }
+#accounts-summary .account-total { display:block; margin-top:0.5rem; font-size:1rem; font-weight:800; color:#06202a; }
+
+@media (max-width:576px) {
+  #accounts-summary .badge { display:block; margin-bottom:0.5rem; }
+}

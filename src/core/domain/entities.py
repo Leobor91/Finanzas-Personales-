@@ -3,7 +3,7 @@ from .exceptions import InvalidAmountError, InvalidDateFormatError, InvalidTypeE
 
 
 class Movement:
-    def __init__(self, date: str, type: str, amount, category: str, description: str | None = None, currency: str = 'COP', fx_rate: float | None = None):
+    def __init__(self, date: str, type: str, amount, category: str, description: str | None = None, currency: str = 'COP', fx_rate: float | None = None, account: str | None = None):
         # Fecha: YYYY-MM-DD
         try:
             datetime.strptime(date, "%Y-%m-%d")
@@ -30,3 +30,5 @@ class Movement:
         # Currency and FX rate (optional). Stored as provided; default currency is COP
         self.currency = currency or 'COP'
         self.fx_rate = float(fx_rate) if fx_rate is not None else None
+        # Optional account name where the movement applies
+        self.account = account

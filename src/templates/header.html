@@ -1,0 +1,42 @@
+<header class="site-header border-bottom">
+  <div class="container d-flex justify-content-between align-items-center py-2">
+    <div>
+      <div class="logo h5 mb-0">Finanzas Personales</div>
+      <div class="small-muted">Administre sus cuentas y movimientos</div>
+    </div>
+    <div class="page-actions">
+      {% if active == 'index' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Finanzas</a>
+      {% else %}
+        <a href="/" class="btn btn-outline-primary btn-sm">Ver Finanzas</a>
+      {% endif %}
+
+      {% if active == 'reports' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Reportes</a>
+      {% else %}
+        <a href="/ui/reports" class="btn btn-outline-primary btn-sm">Ver Reportes</a>
+      {% endif %}
+
+      {% if active == 'categories' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Categorías</a>
+      {% else %}
+        <a href="/categories/all" class="btn btn-outline-primary btn-sm">Ver Categorías</a>
+      {% endif %}
+
+      {% if active == 'accounts' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Cuentas</a>
+      {% else %}
+        <a href="/ui/accounts" class="btn btn-outline-primary btn-sm">Cuentas</a>
+      {% endif %}
+
+      {% if active == 'settings' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Configuración DB</a>
+      {% else %}
+        <a href="/ui/settings" class="btn btn-outline-primary btn-sm">Configuración DB</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<!-- content-offset adds top padding so content isn't hidden below sticky header -->
+<div class="content-offset">

@@ -1,4 +1,6 @@
 import argparse
+import json
+from pathlib import Path
 from .infrastructure.database.sqlite_adapter import SQLiteMovementRepository
 from .core.services.movement_service import MovementService
 from .core.domain.exceptions import InvalidAmountError, InvalidDateFormatError, InvalidTypeError
@@ -20,7 +22,25 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    repo = SQLiteMovementRepository()
+    # determine DB from config if present
+    cfg_path = Path.cwd() / 'data' / 'db_config.json'
+    db_name = None
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as fh:
+                db_name = json.load(fh).get('database')
+        except Exception:
+            db_name = None
+    db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
+    if not db_path.is_absolute():
+        # try cwd then data/
+        candidate = Path.cwd() / db_path
+        if candidate.exists():
+            db_path = candidate
+        else:
+            db_path = Path.cwd() / 'data' / db_path.name
+
+    repo = SQLiteMovementRepository(db_path)
     service = MovementService(repo)
     try:
         movement_id = service.create_movement(
@@ -68,7 +88,23 @@ if __name__ == "__main__":
             p.add_argument("--month", required=True)
             p.add_argument("--year", required=True)
             args2 = p.parse_args(argv[2:])
-            repo = SQLiteMovementRepository()
+            # report CLI should respect config
+            cfg_path = Path.cwd() / 'data' / 'db_config.json'
+            db_name = None
+            if cfg_path.exists():
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as fh:
+                        db_name = json.load(fh).get('database')
+                except Exception:
+                    db_name = None
+            db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
+            if not db_path.is_absolute():
+                candidate = Path.cwd() / db_path
+                if candidate.exists():
+                    db_path = candidate
+                else:
+                    db_path = Path.cwd() / 'data' / db_path.name
+            repo = SQLiteMovementRepository(db_path)
             try:
                 from .core.services.report_service import ReportService
 
@@ -79,7 +115,22 @@ if __name__ == "__main__":
                 repo.close()
             raise SystemExit(0)
         if len(argv) >= 2 and argv[1] == "categories":
-            repo = SQLiteMovementRepository()
+            cfg_path = Path.cwd() / 'data' / 'db_config.json'
+            db_name = None
+            if cfg_path.exists():
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as fh:
+                        db_name = json.load(fh).get('database')
+                except Exception:
+                    db_name = None
+            db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
+            if not db_path.is_absolute():
+                candidate = Path.cwd() / db_path
+                if candidate.exists():
+                    db_path = candidate
+                else:
+                    db_path = Path.cwd() / 'data' / db_path.name
+            repo = SQLiteMovementRepository(db_path)
             try:
                 from .core.services.report_service import ReportService
 
@@ -115,7 +166,22 @@ def build_list_parser():
 def list_main(argv=None):
     parser = build_list_parser()
     args = parser.parse_args(argv)
-    repo = SQLiteMovementRepository()
+    cfg_path = Path.cwd() / 'data' / 'db_config.json'
+    db_name = None
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as fh:
+                db_name = json.load(fh).get('database')
+        except Exception:
+            db_name = None
+    db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
+    if not db_path.is_absolute():
+        candidate = Path.cwd() / db_path
+        if candidate.exists():
+            db_path = candidate
+        else:
+            db_path = Path.cwd() / 'data' / db_path.name
+    repo = SQLiteMovementRepository(db_path)
     try:
         from .core.services.query_service import MovementQueryService
 

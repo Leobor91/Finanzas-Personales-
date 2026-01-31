@@ -1,74 +1,93 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Finanzas Personales — Registrar</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/styles.css">
-  </head>
-  <body>
-    <div class="container">
-      <div class="card centered p-4">
-        <div class="d-flex align-items-center mb-3">
-          <div class="me-auto">
-            <div class="logo h4 mb-0">Finanzas Personales</div>
-            <div class="small-muted">Registrar Ingresos y Gastos</div>
-          </div>
-          <div>
-            <a href="/ui/reports" class="btn btn-outline-primary btn-sm me-2">Ver Reportes</a>
-            <a href="/categories/all" class="btn btn-outline-secondary btn-sm">Ver Categorías</a>
-          </div>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finanzas Personales — Registrar</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+  {% include 'header.html' %}
+  <div class="container">
+    <div class="card centered p-4">
+
+      <div id="accounts-summary" class="mb-3">
+        <!-- Accounts balances will be injected here -->
+      </div>
+
+      <form id="register-form" class="row g-3 needs-validation" novalidate>
+        <div class="col-md-4">
+          <label class="form-label">Fecha</label>
+          <input name="date" type="date" class="form-control" required>
+          <div class="invalid-feedback">Seleccione una fecha válida.</div>
         </div>
 
-        <form id="register-form" class="row g-3 needs-validation" novalidate>
-          <div class="col-md-4">
-            <label class="form-label">Fecha</label>
-            <input name="date" type="date" class="form-control" required>
-            <div class="invalid-feedback">Seleccione una fecha válida.</div>
-          </div>
+        <div class="col-md-4">
+          <label class="form-label">Tipo</label>
+          <select name="type" class="form-select" required>
+            <option value="Ingreso">Ingreso</option>
+            <option value="Gasto">Gasto</option>
+          </select>
+          <div class="invalid-feedback">Seleccione un tipo.</div>
+        </div>
 
-          <div class="col-md-4">
-            <label class="form-label">Tipo</label>
-            <select name="type" class="form-select" required>
-              <option value="Ingreso">Ingreso</option>
-              <option value="Gasto">Gasto</option>
+        <div class="col-md-4">
+          <label class="form-label">Monto</label>
+          <input name="amount" type="number" step="0.01" class="form-control" required>
+          <div class="invalid-feedback">El monto debe ser mayor a 0.</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Categoría</label>
+          <div class="input-group">
+            <select name="category" id="category-select" class="form-select" required>
+              <option value="">Cargando...</option>
             </select>
-            <div class="invalid-feedback">Seleccione un tipo.</div>
+            <button class="btn btn-outline-secondary" type="button" id="add-cat-btn">+</button>
           </div>
+          <div class="invalid-feedback">Indica una categoría.</div>
+        </div>
 
-          <div class="col-md-4">
-            <label class="form-label">Monto</label>
-            <input name="amount" type="number" step="0.01" class="form-control" required>
-            <div class="invalid-feedback">El monto debe ser mayor a 0.</div>
+        <div class="col-md-6">
+          <label class="form-label">Cuenta</label>
+          <div class="input-group">
+            <select name="account" id="account-select" class="form-select" required>
+            </select>
+            <button class="btn btn-outline-secondary" type="button" id="add-acc-btn">+</button>
           </div>
+          <div class="invalid-feedback">Elija la cuenta desde la que se hizo el movimiento.</div>
+        </div>
 
-          <div class="col-md-6">
-            <label class="form-label">Categoría</label>
-            <div class="input-group">
-              <select name="category" id="category-select" class="form-select" required>
-                <option value="">Cargando...</option>
-              </select>
-              <button class="btn btn-outline-secondary" type="button" id="add-cat-btn">+</button>
-            </div>
-            <div class="invalid-feedback">Indica una categoría.</div>
-          </div>
+        <div class="col-md-6">
+          <label class="form-label">Descripción (opcional)</label>
+          <input name="description" class="form-control">
+        </div>
 
-          <div class="col-md-6">
-            <label class="form-label">Descripción (opcional)</label>
-            <input name="description" class="form-control">
-          </div>
+        <div class="col-12">
+          <button class="btn btn-primary" id="submit-btn">Registrar Movimiento</button>
+          <div id="alert-placeholder" class="mt-3"></div>
+        </div>
+      </form>
 
-          <div class="col-12">
-            <button class="btn btn-primary" id="submit-btn">Registrar movimiento</button>
-            <div id="alert-placeholder" class="mt-3"></div>
-          </div>
-        </form>
+      <hr>
+      <div id="movements-history" class="mt-4">
+        <!-- Paginated movements will render here -->
+        <div id="history-controls" class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>Historial</strong></div>
+          <div><small id="history-meta" class="text-muted"></small></div>
+        </div>
+        <div id="history-table"></div>
+        <nav id="history-pagination" aria-label="Page navigation" class="mt-2"></nav>
       </div>
     </div>
+  </div>
+  </div> <!-- close content-offset -->
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
     // Category modal HTML
     const catModalHtml = `
       <div class="modal fade" id="catModal" tabindex="-1" aria-hidden="true">
@@ -84,6 +103,48 @@
       </div>`;
     document.body.insertAdjacentHTML('beforeend', catModalHtml);
     const catModal = new bootstrap.Modal(document.getElementById('catModal'));
+
+    // Account modal HTML (create account from the register page)
+    const accModalHtml = `
+      <div class="modal fade" id="accModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Nueva cuenta</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+              <div class="mb-3"><label class="form-label">Nombre</label><input id="new-acc-name" class="form-control"></div>
+              <div class="row g-2">
+                <div class="col-6"><label class="form-label">Saldo inicial</label><input id="new-acc-balance" type="number" step="0.01" class="form-control" value="0.00"></div>
+                <div class="col-6"><label class="form-label">Moneda</label><input id="new-acc-currency" class="form-control" value="COP"></div>
+              </div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="save-acc" class="btn btn-primary">Guardar</button></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', accModalHtml);
+    const accModal = new bootstrap.Modal(document.getElementById('accModal'));
+    // Edit movement modal (inserted into page)
+    const editModalHtml = `
+      <div class="modal fade" id="editMovModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Editar movimiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+              <form id="edit-mov-form" class="row g-2">
+                <div class="col-6"><label class="form-label">Fecha</label><input id="edit-date" name="date" type="date" class="form-control" required></div>
+                <div class="col-6"><label class="form-label">Tipo</label><select id="edit-type" name="type" class="form-select"><option>Ingreso</option><option>Gasto</option></select></div>
+                <div class="col-6"><label class="form-label">Cuenta</label><select id="edit-account" name="account" class="form-select"></select></div>
+                <div class="col-6"><label class="form-label">Categoría</label><select id="edit-category" name="category" class="form-select"></select></div>
+                <div class="col-12"><label class="form-label">Monto</label><input id="edit-amount" name="amount" type="number" step="0.01" class="form-control" required></div>
+                <div class="col-12"><label class="form-label">Descripción</label><input id="edit-description" name="description" class="form-control"></div>
+              </form>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="save-edit-mov" class="btn btn-primary">Guardar</button></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', editModalHtml);
+    const editModal = new bootstrap.Modal(document.getElementById('editMovModal'));
     (function () {
       // Bootstrap validation
       const form = document.getElementById('register-form');
@@ -94,43 +155,270 @@
       }
 
       // load categories based on type
-      async function loadCategoriesForType(type){
+      async function loadCategoriesForType(type) {
         const sel = document.getElementById('category-select');
         sel.innerHTML = '<option value="">Cargando...</option>';
-        try{
+        try {
           const res = await fetch(`/categories?type=${encodeURIComponent(type)}`);
           const json = await res.json();
           sel.innerHTML = '';
-          if(res.status===200 && Array.isArray(json)){
-            for(const c of json){
-              const opt = document.createElement('option'); opt.value=c.name; opt.innerText=c.name; sel.appendChild(opt);
+          if (res.status === 200 && Array.isArray(json)) {
+            for (const c of json) {
+              const opt = document.createElement('option'); opt.value = c.name; opt.innerText = c.name; sel.appendChild(opt);
             }
           } else {
             sel.innerHTML = '<option value="">(sin categorías)</option>';
           }
-        }catch(e){ sel.innerHTML = '<option value="">(error)</option>'; }
+        } catch (e) { sel.innerHTML = '<option value="">(error)</option>'; }
       }
 
+
+      async function loadAccounts() {
+        const sel = document.getElementById('account-select');
+        try {
+          const res = await fetch('/accounts');
+          const json = await res.json();
+          if (res.status === 200 && Array.isArray(json)) {
+            for (const a of json) {
+              const opt = document.createElement('option'); opt.value = a.name; opt.innerText = a.name + ' (' + (a.initial_balance || 0) + ')'; sel.appendChild(opt);
+            }
+          } else {
+            sel.innerHTML = '<option value="">(sin cuentas)</option>';
+          }
+        } catch (e) { sel.innerHTML = '<option value="">(error)</option>'; }
+      }
+
+      async function loadAccountBalances() {
+        const container = document.getElementById('accounts-summary');
+        container.innerHTML = '<div class="small-muted">Cargando saldos...</div>';
+        try {
+          const res = await fetch('/accounts/balances');
+          const json = await res.json();
+          if (res.status === 200 && Array.isArray(json)) {
+            if (json.length === 0) {
+              container.innerHTML = '<div class="form-text">No hay cuentas registradas.</div>';
+              return;
+            }
+            let html = '<div class="d-flex gap-3 flex-wrap">';
+            let total = 0;
+            for (const a of json) {
+              const balStr = Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              html += `<div class="badge bg-light text-dark p-2" title="${a.name}">${a.name}: <strong>$ ${balStr}</strong> ${a.currency}</div>`;
+              total += Number(a.balance || 0);
+            }
+            const totalStr = Number(total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            html += `</div><div class="mt-2"><strong>Total: $ ${totalStr} COP</strong></div>`;
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = '<div class="form-text text-danger">No se pudo cargar saldos.</div>';
+          }
+        } catch (e) { container.innerHTML = '<div class="form-text text-danger">Error al cargar saldos.</div>'; }
+      }
+
+      // initial loads
       const typeSel = form.querySelector('select[name="type"]');
-      typeSel.addEventListener('change', ()=> loadCategoriesForType(typeSel.value));
+      typeSel.addEventListener('change', () => loadCategoriesForType(typeSel.value));
       // initial load
       loadCategoriesForType(typeSel.value);
+      loadAccounts();
+
+      // helper to populate edit modal selects
+      async function loadEditAccounts(selected) {
+        const sel = document.getElementById('edit-account');
+        sel.innerHTML = '<option value="">Cargando...</option>';
+        try {
+          const res = await fetch('/accounts');
+          const json = await res.json();
+          sel.innerHTML = '';
+          if (res.status === 200 && Array.isArray(json)) {
+            for (const a of json) {
+              const opt = document.createElement('option'); opt.value = a.name; opt.innerText = a.name + ' (' + (a.initial_balance || 0) + ')'; sel.appendChild(opt);
+            }
+            if (selected) sel.value = selected;
+          } else { sel.innerHTML = '<option value="">(sin cuentas)</option>'; }
+        } catch (e) { sel.innerHTML = '<option value="">(error)</option>'; }
+      }
+
+      async function loadEditCategoriesForType(type, selected) {
+        const sel = document.getElementById('edit-category');
+        sel.innerHTML = '<option value="">Cargando...</option>';
+        try {
+          const res = await fetch(`/categories?type=${encodeURIComponent(type)}`);
+          const json = await res.json();
+          sel.innerHTML = '';
+          if (res.status === 200 && Array.isArray(json)) {
+            for (const c of json) { const opt = document.createElement('option'); opt.value = c.name; opt.innerText = c.name; sel.appendChild(opt); }
+            if (selected) sel.value = selected;
+          } else { sel.innerHTML = '<option value="">(sin categorías)</option>'; }
+        } catch (e) { sel.innerHTML = '<option value="">(error)</option>'; }
+      }
+
+      // Delegated handlers for edit/delete buttons in history table
+      document.getElementById('history-table').addEventListener('click', async (ev) => {
+        const delBtn = ev.target.closest('.delete-mov');
+        if (delBtn) {
+          ev.preventDefault();
+          const id = delBtn.dataset.id;
+          if (!id) return;
+          if (!confirm('¿Eliminar movimiento #' + id + '?')) return;
+          try {
+            const res = await fetch('/movements/' + id, { method: 'DELETE' });
+            if (res.status === 200) {
+              loadHistory(1,20);
+            } else {
+              const j = await res.json(); alert('Error: ' + (j.error || JSON.stringify(j)));
+            }
+          } catch (e) { alert('Error de red: ' + e.message); }
+          return;
+        }
+
+        const editBtn = ev.target.closest('.edit-mov');
+        if (editBtn) {
+          ev.preventDefault();
+          let mstr = editBtn.dataset.m || '';
+          mstr = mstr.replace(/&#39;/g, "'");
+          let m;
+          try { m = JSON.parse(mstr); } catch (e) { return alert('No se pudo parsear movimiento'); }
+          // populate fields
+          document.getElementById('edit-date').value = m.date || '';
+          document.getElementById('edit-type').value = m.type || 'Gasto';
+          document.getElementById('edit-amount').value = Number(m.amount).toFixed(2);
+          document.getElementById('edit-description').value = m.description || '';
+          // load accounts and categories for current type
+          await loadEditAccounts(m.account);
+          await loadEditCategoriesForType(m.type, m.category);
+          // save id on button
+          document.getElementById('save-edit-mov').dataset.id = m.id;
+          editModal.show();
+          return;
+        }
+      });
+
+      // save edit handler
+      document.getElementById('save-edit-mov').addEventListener('click', async () => {
+        const id = document.getElementById('save-edit-mov').dataset.id;
+        if (!id) return alert('Movimiento no especificado');
+        const payload = {
+          date: document.getElementById('edit-date').value,
+          type: document.getElementById('edit-type').value,
+          account: document.getElementById('edit-account').value,
+          category: document.getElementById('edit-category').value,
+          amount: Number(document.getElementById('edit-amount').value || 0),
+          description: document.getElementById('edit-description').value || ''
+        };
+        if (Number(payload.amount) <= 0) return alert('El monto debe ser mayor a cero.');
+        try {
+          const res = await fetch('/movements/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const j = await res.json();
+          if (res.status === 200) {
+            editModal.hide();
+            loadHistory(1,20);
+            loadAccountBalances();
+          } else {
+            alert('Error: ' + (j.error || JSON.stringify(j)));
+          }
+        } catch (e) { alert('Error de red: ' + e.message); }
+      });
+
+      // Movements history pagination
+      async function loadHistory(page = 1, per_page = 20) {
+        const tableEl = document.getElementById('history-table');
+        const metaEl = document.getElementById('history-meta');
+        const pagerEl = document.getElementById('history-pagination');
+        tableEl.innerHTML = '<div class="small-muted">Cargando historial...</div>';
+        try {
+          const res = await fetch(`/movements/history?page=${page}&per_page=${per_page}`);
+          const j = await res.json();
+          if (res.status !== 200) { tableEl.innerHTML = '<div class="text-danger">Error cargando historial</div>'; return; }
+          const items = j.items || [];
+          metaEl.innerText = `Mostrando ${items.length} de ${j.total} — página ${j.page} de ${j.total_pages}`;
+          if (items.length === 0) {
+            tableEl.innerHTML = '<div class="form-text">No hay movimientos registrados.</div>';
+          } else {
+            let h = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th></tr></thead><tbody>';
+            for (const m of items) {
+              const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
+              const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
+              const sign = m.type === 'Ingreso' ? '+' : (m.type === 'Gasto' ? '-' : '');
+              const amtStr = Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              h += `<tr class="${rowClass}"><td>${m.date}</td><td>${m.type}</td><td>${m.account || ''}</td><td>${m.category}</td><td>${m.description || ''}</td><td class="text-end ${amtClass}"><span class="mov-sign">${sign}</span>$ ${amtStr}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-secondary edit-mov" data-m='${JSON.stringify(m).replace(/'/g, "&#39;")}'>Editar</button> <button class="btn btn-sm btn-outline-danger delete-mov" data-id="${m.id}">Eliminar</button></td></tr>`;
+            }
+            h += '</tbody></table></div>';
+            tableEl.innerHTML = h;
+          }
+
+          // build pagination
+          const total = j.total || 0;
+          const totalPages = j.total_pages || 1;
+          let pgHtml = '<ul class="pagination">';
+          const prevDisabled = page <= 1 ? ' disabled' : '';
+          pgHtml += `<li class="page-item${prevDisabled}"><a class="page-link" href="#" data-page="${page - 1}">Anterior</a></li>`;
+          // simple page window: show up to 7 pages around current
+          const maxButtons = 7;
+          let start = Math.max(1, page - Math.floor(maxButtons / 2));
+          let end = Math.min(totalPages, start + maxButtons - 1);
+          if (end - start < maxButtons - 1) start = Math.max(1, end - maxButtons + 1);
+          for (let p = start; p <= end; p++) {
+            const active = p === page ? ' active' : '';
+            pgHtml += `<li class="page-item${active}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
+          }
+          const nextDisabled = page >= totalPages ? ' disabled' : '';
+          pgHtml += `<li class="page-item${nextDisabled}"><a class="page-link" href="#" data-page="${page + 1}">Siguiente</a></li>`;
+          pgHtml += '</ul>';
+          pagerEl.innerHTML = pgHtml;
+          // attach handlers
+          pagerEl.querySelectorAll('a.page-link').forEach(a => {
+            a.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              const p = Number(a.dataset.page);
+              if (!isNaN(p) && p >= 1 && p <= totalPages) loadHistory(p, per_page);
+            });
+          });
+        } catch (err) {
+          tableEl.innerHTML = '<div class="text-danger">Error al cargar historial.</div>';
+        }
+      }
+
+      // initial history load
+      loadHistory(1, 20);
 
       // add category flow
-      document.getElementById('add-cat-btn').addEventListener('click', ()=>{ document.getElementById('new-cat-name').value=''; catModal.show(); });
-      document.getElementById('save-cat').addEventListener('click', async ()=>{
+      document.getElementById('add-cat-btn').addEventListener('click', () => { document.getElementById('new-cat-name').value = ''; catModal.show(); });
+      document.getElementById('save-cat').addEventListener('click', async () => {
         const name = document.getElementById('new-cat-name').value.trim();
         const type = typeSel.value;
-        if(!name) return alert('Nombre requerido');
-        try{
-          const res = await fetch('/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type, name})});
-          if(res.status===201){
+        if (!name) return alert('Nombre requerido');
+        try {
+          const res = await fetch('/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name }) });
+          if (res.status === 201) {
             catModal.hide();
             await loadCategoriesForType(type);
             // select the new category
             const sel = document.getElementById('category-select'); sel.value = name;
-          } else { const j = await res.json(); alert('Error: '+(j.error||JSON.stringify(j))); }
-        }catch(e){ alert('Error de red: '+e.message); }
+          } else { const j = await res.json(); alert('Error: ' + (j.error || JSON.stringify(j))); }
+        } catch (e) { alert('Error de red: ' + e.message); }
+      });
+
+      // add account via modal
+      document.getElementById('add-acc-btn').addEventListener('click', () => { document.getElementById('new-acc-name').value = ''; document.getElementById('new-acc-balance').value = '0.00'; document.getElementById('new-acc-currency').value = 'COP'; accModal.show(); });
+      document.getElementById('save-acc').addEventListener('click', async () => {
+        const name = document.getElementById('new-acc-name').value.trim();
+        const initial = Number(document.getElementById('new-acc-balance').value || 0);
+        const currency = document.getElementById('new-acc-currency').value || 'COP';
+        if (!name) return alert('Nombre requerido');
+        try {
+          const res = await fetch('/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, initial_balance: initial, currency }) });
+          const j = await res.json();
+          if (res.status === 201) {
+            accModal.hide();
+            // refresh accounts select and choose new account
+            await loadAccounts();
+            const sel = document.getElementById('account-select');
+            sel.value = name;
+          } else {
+            alert('Error: ' + (j.error || JSON.stringify(j)));
+          }
+        } catch (e) { alert('Error de red: ' + e.message); }
       });
 
       form.addEventListener('submit', async function (e) {
@@ -147,6 +435,11 @@
           showAlert('El monto debe ser mayor a cero.', 'danger');
           return;
         }
+        // Require account selection
+        if (!data.account) {
+          showAlert('Seleccione una cuenta antes de registrar el movimiento.', 'danger');
+          return;
+        }
 
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = true;
@@ -154,14 +447,14 @@
         try {
           const res = await fetch('/movements', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
           });
           const json = await res.json();
           if (res.status === 201) {
             showAlert('Movimiento registrado (id: ' + json.id + ')', 'success');
-            form.reset();
-            form.classList.remove('was-validated');
+            // reload page so the history and balances refresh
+            setTimeout(() => location.reload(), 600);
           } else {
             showAlert('Error: ' + (json.error || JSON.stringify(json)), 'danger');
           }
@@ -169,10 +462,11 @@
           showAlert('Error de red o del servidor: ' + err.message, 'danger');
         } finally {
           submitBtn.disabled = false;
-          submitBtn.innerText = 'Registrar movimiento';
+          submitBtn.innerText = 'Registrar Movimiento';
         }
       }, false);
     })();
-    </script>
-  </body>
+  </script>
+</body>
+
 </html>

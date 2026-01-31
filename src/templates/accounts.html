@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cuentas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+    {% include 'header.html' %}
+    <div class="container py-4">        
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <div class="logo h4 mb-0">Cuentas</div>
+                <div class="small-muted">Gestione sus cuentas y vea el total disponible</div>
+                <div class="form-text">Selecciona una cuenta para ver sus movimientos y saldo.</div>
+            </div>
+        </div>
+
+        <div class="row gx-4">
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title">Resumen</h6>
+                        <div class="list-group" id="accounts-list" style="max-height:540px; overflow:auto;">
+                            {% for a in accounts %}
+                            <button
+                                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center account-item"
+                                data-account="{{ a.name }}">
+                                <div class="me-2">{{ a.name }}</div>
+                                <div><span class="badge bg-light text-dark">$ {{ "{:,.2f}".format(a.balance) }} {{ a.currency
+                                    }}</span></div>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-3 text-muted"><strong>Total:</strong> $ {{ "{:,.2f}".format(total) }} COP</div>
+                    </div>
+                </div>
+
+                <div class="card mt-3 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title">Agregar cuenta</h6>
+                        <form id="add-account-form" class="row g-2">
+                            <div class="col-12"><input name="name" class="form-control"
+                                    placeholder="Nombre de la cuenta" required></div>
+                            <div class="col-6"><input name="initial_balance" type="number" step="0.01"
+                                    class="form-control" value="0.00" placeholder="Saldo inicial"></div>
+                            <div class="col-6"><input name="currency" class="form-control" value="COP"
+                                    placeholder="Moneda"></div>
+                            <div class="col-12">
+                                <button id="save-account" class="btn btn-primary w-100 mt-2">Agregar cuenta</button>
+                                <div id="acct-alert" class="mt-2"></div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div id="account-details"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('add-account-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(this).entries());
+            const alert = document.getElementById('acct-alert');
+            try {
+                const res = await fetch('/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const j = await res.json();
+                if (res.status === 201) {
+                    alert.innerHTML = '<div class="alert alert-success">Cuenta agregada</div>';
+                    setTimeout(() => location.reload(), 700);
+                } else {
+                    alert.innerHTML = '<div class="alert alert-danger">Error: ' + (j.error || '') + '</div>';
+                }
+            } catch (err) { alert.innerHTML = '<div class="alert alert-danger">Error de red</div>'; }
+        });
+
+        async function loadAccountMovements(name) {
+            const el = document.getElementById('account-details');
+            el.innerHTML = '<div class="small-muted">Cargando movimientos...</div>';
+            try {
+                const res = await fetch('/accounts/' + encodeURIComponent(name) + '/movements');
+                const j = await res.json();
+                if (res.status === 200) {
+                    const balStr = Number(j.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    let html = `<h6>${j.account} — Saldo: $ ${balStr} ${j.currency}</h6>`;
+                    if (!j.movements || j.movements.length === 0) {
+                        html += '<div class="form-text">No hay movimientos para esta cuenta.</div>';
+                    } else {
+                        html += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th><th>Acciones</th></tr></thead><tbody>';
+                        for (const m of j.movements) {
+                            const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
+                            const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
+                            const sign = m.type === 'Ingreso' ? '+' : (m.type === 'Gasto' ? '-' : '');
+                            const amtStr = Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            html += `<tr class="${rowClass}"><td>${m.date}</td><td>${m.type}</td><td>${m.category}</td><td>${m.description || ''}</td><td class="text-end ${amtClass}"><span class="mov-sign">${sign}</span>$ ${amtStr}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-danger delete-mov" data-id="${m.id}">Eliminar</button></td></tr>`;
+                        }
+                        html += '</tbody></table></div>';
+                    }
+
+                    // quick deposit form
+                    html += `<hr><form id="add-funds-form" class="row g-2"><div class="col-6"><input name="amount" id="add-amount" class="form-control" type="number" step="0.01" placeholder="Monto" required></div><div class="col-6"><input name="description" id="add-desc" class="form-control" placeholder="Descripción (opcional)"></div><div class="col-12 mt-2"><button id="add-funds-btn" class="btn btn-success btn-sm">Agregar dinero</button> <span id="add-funds-alert" class="ms-2"></span></div></form>`;
+
+                    // add transfer form placeholder (will be appended after setting innerHTML)
+                    html += `<div id="post-forms"></div>`;
+
+                    el.innerHTML = html;
+
+                    // attach handler for deposit form — avoid full reload, refresh fragments instead
+                    const formAdd = document.getElementById('add-funds-form');
+                    formAdd.addEventListener('submit', async function (ev) {
+                        ev.preventDefault();
+                        const btn = document.getElementById('add-funds-btn');
+                        const alertEl = document.getElementById('add-funds-alert');
+                        btn.disabled = true;
+                        try {
+                            const amount = Number(document.getElementById('add-amount').value);
+                            if (!amount || amount <= 0) { alertEl.innerHTML = '<span class="text-danger">Monto inválido</span>'; btn.disabled = false; return; }
+                            const desc = document.getElementById('add-desc').value || '';
+                            const d = new Date();
+                            const date = d.toISOString().slice(0, 10);
+                            const payload = { date: date, type: 'Ingreso', amount: amount, category: 'Depósito', description: desc, account: j.account, currency: 'COP' };
+                            const res2 = await fetch('/movements', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                            const rj = await res2.json();
+                            if (res2.status === 201) {
+                                alertEl.innerHTML = '<span class="text-success">Depositado</span>';
+                                // refresh whole page so balances everywhere update
+                                setTimeout(() => location.reload(), 600);
+                            } else {
+                                alertEl.innerHTML = '<span class="text-danger">Error: ' + (rj.error || '') + '</span>';
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            document.getElementById('add-funds-alert').innerHTML = '<span class="text-danger">Error de red</span>';
+                        } finally { btn.disabled = false; }
+                    });
+
+                    // insert transfer form after deposit form (includes description input)
+                    const post = document.getElementById('post-forms');
+                    post.insertAdjacentHTML('beforeend', `<hr><form id="transfer-form" class="row g-2 mt-3"><div class="col-6"><select id="transfer-to" class="form-select"></select></div><div class="col-3"><input id="transfer-amount" class="form-control" type="number" step="0.01" placeholder="Monto" required></div><div class="col-3"><button id="transfer-btn" class="btn btn-warning btn-sm">Transferir</button></div><div class="col-12 mt-2"><input id="transfer-desc" class="form-control" placeholder="Motivo / descripción (opcional)"></div></form><div id="transfer-alert" class="mt-2"></div>`);
+
+                    // populate destination accounts
+                    (async function () {
+                        try {
+                            const resp = await fetch('/accounts');
+                            const list = await resp.json();
+                            const sel = document.getElementById('transfer-to');
+                            sel.innerHTML = '';
+                            for (const acc of list) {
+                                if (acc.name !== j.account) {
+                                    const o = document.createElement('option'); o.value = acc.name; o.innerText = acc.name + ' (' + (acc.initial_balance || 0) + ')'; sel.appendChild(o);
+                                }
+                            }
+                        } catch (e) { /* ignore */ }
+                    })();
+
+                    // attach transfer handler
+                    document.getElementById('transfer-form').addEventListener('submit', async function (ev) {
+                        ev.preventDefault();
+                        const btn = document.getElementById('transfer-btn');
+                        const alertEl = document.getElementById('transfer-alert');
+                        btn.disabled = true;
+                        try {
+                            const to = document.getElementById('transfer-to').value;
+                            const amt = Number(document.getElementById('transfer-amount').value);
+                            const desc = document.getElementById('transfer-desc').value || '';
+                            const d = new Date();
+                            const date = d.toISOString().slice(0, 10);
+                            if (!to) { alertEl.innerHTML = '<span class="text-danger">Seleccione destino</span>'; btn.disabled = false; return; }
+                            if (!amt || amt <= 0) { alertEl.innerHTML = '<span class="text-danger">Monto inválido</span>'; btn.disabled = false; return; }
+                            const payload = { from: j.account, to: to, amount: amt, description: desc, date: date };
+                            const r = await fetch('/accounts/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                            const rj = await r.json();
+                                if (r.status === 201) {
+                                // show confirmation modal with description and refresh fragments
+                                alertEl.innerHTML = '<span class="text-success">Transferido</span>';
+                                const modalHtml = `
+                                                                    <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+                                                                        <div class="modal-dialog">
+                                                                            <div class="modal-content">
+                                                                                <div class="modal-header"><h5 class="modal-title">Transferencia realizada</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                                                                <div class="modal-body">
+                                                                                    <p><strong>Desde:</strong> ${j.account}</p>
+                                                                                    <p><strong>Hacia:</strong> ${to}</p>
+                                                                                    <p><strong>Monto:</strong> ${Number(amt).toFixed(2)}</p>
+                                                                                    <p><strong>Descripción:</strong> ${desc ? desc : '<em>(sin descripción)</em>'}</p>
+                                                                                    <p class="small-muted">Fecha: ${date}</p>
+                                                                                    ${rj.transfer_id ? `<p><strong>ID transferencia:</strong> ${rj.transfer_id}</p>` : ''}
+                                                                                </div>
+                                                                                <div class="modal-footer"><button class="btn btn-primary" data-bs-dismiss="modal">Cerrar</button></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>`;
+                                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                                const modalEl = document.getElementById('transferModal');
+                                const bsModal = new bootstrap.Modal(modalEl);
+                                bsModal.show();
+                                // when modal hides, refresh accounts list and current account fragment
+                                modalEl.addEventListener('hidden.bs.modal', () => { try { bsModal.dispose(); } catch (e) {}; modalEl.remove(); loadAccountsList(j.account); loadAccountMovements(j.account); });
+                                // ensure dismiss button hides modal (hidden handler does the refresh)
+                                const dismissBtns = modalEl.querySelectorAll('[data-bs-dismiss]');
+                                dismissBtns.forEach(b => b.addEventListener('click', () => { bsModal.hide(); }));
+                            } else {
+                                alertEl.innerHTML = '<span class="text-danger">Error: ' + (rj.error || '') + '</span>';
+                            }
+                        } catch (err) { alertEl.innerHTML = '<span class="text-danger">Error de red</span>'; }
+                        finally { btn.disabled = false; }
+                    });
+
+                    // attach delete handlers for movement delete buttons
+                    const delButtons = document.querySelectorAll('.delete-mov');
+                    delButtons.forEach(b => b.addEventListener('click', async function (ev) {
+                        ev.preventDefault();
+                        if (!confirm('¿Eliminar este movimiento? Esta acción no se puede deshacer.')) return;
+                        const btn = this;
+                        btn.disabled = true;
+                        try {
+                            const id = btn.dataset.id;
+                            const res = await fetch('/movements/' + encodeURIComponent(id), { method: 'DELETE' });
+                            const rj = await res.json();
+                            if (res.status === 200) {
+                                // refresh whole page so balances and UI update
+                                setTimeout(() => location.reload(), 400);
+                            } else {
+                                const alertEl = document.getElementById('transfer-alert') || document.getElementById('add-funds-alert') || document.getElementById('acct-alert');
+                                if (alertEl) alertEl.innerHTML = '<span class="text-danger">Error al eliminar: ' + (rj.error || '') + '</span>';
+                            }
+                        } catch (err) {
+                            console.error(err);
+                        } finally { btn.disabled = false; }
+                    }));
+
+                    // load transfer history for this account
+                    (async function () {
+                        try {
+                            const respT = await fetch('/accounts/' + encodeURIComponent(j.account) + '/transfers');
+                            if (respT.status === 200) {
+                                const transfers = await respT.json();
+                                if (transfers && transfers.length) {
+                                    let thtml = '<h6 class="mt-3">Historial de transferencias</h6>';
+                                    thtml += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Desde</th><th>Hacia</th><th class="text-end">Monto</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody>';
+                                    for (const t of transfers) {
+                                        // color transfer as outgoing (red) if from this account, incoming (green) if to this account
+                                        const tRowClass = (t.from === j.account) ? 'table-danger' : (t.to === j.account) ? 'table-success' : '';
+                                        const tAmtClass = (t.from === j.account) ? 'mov-amount-negative' : (t.to === j.account) ? 'mov-amount-positive' : '';
+                                        const tSign = (t.from === j.account) ? '-' : (t.to === j.account) ? '+' : '';
+                                        const tAmtStr = Number(t.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        thtml += `<tr class="${tRowClass}"><td>${t.date}</td><td>${t.from}</td><td>${t.to}</td><td class="text-end ${tAmtClass}"><span class="mov-sign">${tSign}</span>$ ${tAmtStr}</td><td>${t.description || ''}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-secondary edit-transfer" data-t='${JSON.stringify(t).replace(/'/g, "&#39;")}'>Editar</button> <button class="btn btn-sm btn-outline-danger delete-transfer" data-id="${t.id}">Eliminar</button></td></tr>`;
+                                    }
+                                     thtml += '</tbody></table></div>';
+                                     el.insertAdjacentHTML('beforeend', thtml);
+                                     // attach handlers for delete and edit on transfers
+                                     const delTransBtns = el.querySelectorAll('.delete-transfer');
+                                     delTransBtns.forEach(b => b.addEventListener('click', async function (ev) {
+                                         ev.preventDefault();
+                                         if (!confirm('¿Eliminar esta transferencia? Esta acción no se puede deshacer.')) return;
+                                         const id = this.dataset.id;
+                                         try {
+                                             const res = await fetch('/transfers/' + encodeURIComponent(id), { method: 'DELETE' });
+                                             const rj = await res.json();
+                                             if (res.status === 200) {
+                                                 // reload account movements fragment and accounts list
+                                                 loadAccountsList(j.account);
+                                                 loadAccountMovements(j.account);
+                                             } else {
+                                                 alert('Error: ' + (rj.error || 'No se pudo eliminar'));
+                                             }
+                                         } catch (err) { console.error(err); alert('Error de red'); }
+                                     }));
+
+                                     const editTransBtns = el.querySelectorAll('.edit-transfer');
+                                     editTransBtns.forEach(b => b.addEventListener('click', function (ev) {
+                                         ev.preventDefault();
+                                         let tstr = this.dataset.t || '';
+                                         tstr = tstr.replace(/&#39;/g, "'");
+                                         let t;
+                                         try { t = JSON.parse(tstr); } catch (e) { return alert('No se pudo parsear transferencia'); }
+                                         // build modal HTML
+                                         const modalId = 'editTransferModal';
+                                         const existing = document.getElementById(modalId);
+                                         if (existing) existing.remove();
+                                         const modalHtml = `
+                                             <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+                                               <div class="modal-dialog">
+                                                 <div class="modal-content">
+                                                   <div class="modal-header"><h5 class="modal-title">Editar transferencia</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                                   <div class="modal-body">
+                                                     <form id="edit-transfer-form" class="row g-2">
+                                                       <div class="col-6"><label class="form-label">Fecha</label><input id="edt-date" name="date" type="date" class="form-control" value="${t.date}"></div>
+                                                       <div class="col-6"><label class="form-label">Desde</label><input id="edt-from" class="form-control" value="${t.from}"></div>
+                                                       <div class="col-6"><label class="form-label">Hacia</label><input id="edt-to" class="form-control" value="${t.to}"></div>
+                                                       <div class="col-6"><label class="form-label">Monto</label><input id="edt-amount" type="number" step="0.01" class="form-control" value="${Number(t.amount).toFixed(2)}"></div>
+                                                       <div class="col-12"><label class="form-label">Descripción</label><input id="edt-desc" class="form-control" value="${t.description || ''}"></div>
+                                                     </form>
+                                                   </div>
+                                                   <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="save-edit-transfer" class="btn btn-primary">Guardar</button></div>
+                                                 </div>
+                                               </div>
+                                             </div>`;
+                                         document.body.insertAdjacentHTML('beforeend', modalHtml);
+                                         const modalEl = document.getElementById(modalId);
+                                         const bsModal = new bootstrap.Modal(modalEl);
+                                         bsModal.show();
+                                         document.getElementById('save-edit-transfer').addEventListener('click', async () => {
+                                             const payload = {
+                                                 date: document.getElementById('edt-date').value,
+                                                 from: document.getElementById('edt-from').value,
+                                                 to: document.getElementById('edt-to').value,
+                                                 amount: Number(document.getElementById('edt-amount').value || 0),
+                                                 description: document.getElementById('edt-desc').value || ''
+                                             };
+                                             if (!payload.from || !payload.to) return alert('From y To son requeridos');
+                                             if (payload.from === payload.to) return alert('From y To deben ser diferentes');
+                                             if (Number(payload.amount) <= 0) return alert('Monto inválido');
+                                             try {
+                                                 const res = await fetch('/transfers/' + encodeURIComponent(t.id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                                                 const jres = await res.json();
+                                                if (res.status === 200) {
+                                                    bsModal.hide();
+                                                    bsModal.dispose();
+                                                    modalEl.remove();
+                                                    loadAccountsList(j.account);
+                                                    loadAccountMovements(j.account);
+                                                } else {
+                                                    alert('Error: ' + (jres.error || JSON.stringify(jres)));
+                                                }
+                                             } catch (err) { alert('Error de red'); }
+                                         });
+                                         modalEl.addEventListener('hidden.bs.modal', () => { try { bsModal.dispose(); } catch (e) {}; modalEl.remove(); });
+                                     }));
+                                 } else {
+                                     el.insertAdjacentHTML('beforeend', '<div class="form-text mt-3">No hay transferencias relacionadas con esta cuenta.</div>');
+                                 }
+                            }
+                        } catch (err) {
+                            console.error('error fetching transfers', err);
+                        }
+                    })();
+                } else {
+                    el.innerHTML = '<div class="form-text text-danger">No se pudieron cargar movimientos.</div>';
+                }
+            } catch (e) { el.innerHTML = '<div class="form-text text-danger">Error al cargar movimientos.</div>'; }
+        }
+
+        // wire click handlers for account items and active state
+        document.addEventListener('DOMContentLoaded', function () {
+            function bindList() {
+                const items = document.querySelectorAll('.account-item');
+                items.forEach(it => {
+                    it.addEventListener('click', () => {
+                        // mark active
+                        items.forEach(x => x.classList.remove('active'));
+                        it.classList.add('active');
+                        loadAccountMovements(it.dataset.account);
+                    });
+                });
+            }
+            bindList();
+        });
+
+        // Refresh left accounts list with balances and rebind handlers
+        async function loadAccountsList(selected) {
+            const container = document.getElementById('accounts-list');
+            try {
+                const res = await fetch('/accounts/balances');
+                const json = await res.json();
+                if (res.status === 200 && Array.isArray(json)) {
+                    let html = '';
+                    for (const a of json) {
+                        const bal = Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        html += `<button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center account-item" data-account="${a.name}"><div class="me-2">${a.name}</div><div><span class="badge bg-light text-dark">$ ${bal} ${a.currency}</span></div></button>`;
+                    }
+                    container.innerHTML = html;
+                }
+            } catch (err) {
+                console.error('Error loading accounts list', err);
+            }
+            // bind clicks
+            const items = container.querySelectorAll('.account-item');
+            items.forEach(it => {
+                it.addEventListener('click', () => {
+                    items.forEach(x => x.classList.remove('active'));
+                    it.classList.add('active');
+                    loadAccountMovements(it.dataset.account);
+                });
+            });
+            if (selected) {
+                const sel = container.querySelector(`[data-account="${selected}"]`);
+                if (sel) sel.classList.add('active');
+            }
+        }
+    </script>
+</body>
+
+</html>
