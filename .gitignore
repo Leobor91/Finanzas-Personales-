@@ -29,6 +29,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 .tox/
+.pyc
 .nox/
 .coverage
 .coverage.*
@@ -75,6 +76,7 @@ Desktop.ini
 # SQLite DB
 finance_app.db
 *.db
+*.pyc
 
 # Temporary files
 *.tmp
