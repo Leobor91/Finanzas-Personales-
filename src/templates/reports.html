@@ -70,6 +70,17 @@
               </div>
             </div>
 
+            <div class="row mt-2">
+              <div class="col-12">
+                <label class="form-label">Exportar Movimientos (Fecha inicio - Fecha fin)</label>
+                <div class="d-flex gap-2">
+                  <input id="export-from" type="date" class="form-control">
+                  <input id="export-to" type="date" class="form-control">
+                  <button id="export-csv" class="btn btn-outline-secondary">Descargar CSV</button>
+                </div>
+              </div>
+            </div>
+
             <hr>
             <div id="balance-area">
               <div class="kpi-grid">
@@ -526,6 +537,18 @@
     }
     const fxRateEl = document.getElementById('fx-rate');
     if(fxRateEl){ fxRateEl.addEventListener('change', ()=>{ loadBalance(); loadCategories(); }); }
+    // CSV export handler
+    const exportBtn = document.getElementById('export-csv');
+    if(exportBtn){
+      exportBtn.addEventListener('click', ()=>{
+        const from = document.getElementById('export-from').value;
+        const to = document.getElementById('export-to').value;
+        if(!from || !to){ alert('Por favor seleccione fecha inicial y final'); return; }
+        // simple navigation to trigger file download
+        const url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+        window.location = url;
+      });
+    }
     </script>
   </body>
 </html>

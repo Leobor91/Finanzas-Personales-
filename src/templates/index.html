@@ -76,7 +76,20 @@
       <div id="movements-history" class="mt-4">
         <!-- Paginated movements will render here -->
         <div id="history-controls" class="d-flex justify-content-between align-items-center mb-2">
-          <div><strong>Historial</strong></div>
+          <div class="d-flex align-items-center gap-2">
+            <strong>Historial</strong>
+            <label class="mb-0 ms-2">Tipo</label>
+            <select id="history-type" class="form-select form-select-sm" style="width:auto">
+              <option value="">Todos</option>
+              <option value="Ingreso">Ingreso</option>
+              <option value="Gasto">Gasto</option>
+            </select>
+            <div class="form-check ms-2">
+              <input class="form-check-input" type="checkbox" id="group-by-type">
+              <label class="form-check-label small-muted" for="group-by-type">Agrupar por tipo</label>
+            </div>
+            <button id="history-refresh" class="btn btn-sm btn-outline-secondary ms-2">Actualizar</button>
+          </div>
           <div><small id="history-meta" class="text-muted"></small></div>
         </div>
         <div id="history-table"></div>
@@ -180,7 +193,7 @@
           const json = await res.json();
           if (res.status === 200 && Array.isArray(json)) {
             for (const a of json) {
-              const opt = document.createElement('option'); opt.value = a.name; opt.innerText = a.name + ' (' + (a.initial_balance || 0) + ')'; sel.appendChild(opt);
+              const opt = document.createElement('option'); opt.value = a.name; opt.innerText = a.name ; sel.appendChild(opt);
             }
           } else {
             sel.innerHTML = '<option value="">(sin cuentas)</option>';
@@ -256,7 +269,7 @@
       // Delegated handlers for edit/delete buttons in history table
       document.getElementById('history-table').addEventListener('click', async (ev) => {
         const delBtn = ev.target.closest('.delete-mov');
-        if (delBtn) {
+            if (delBtn) {
           ev.preventDefault();
           const id = delBtn.dataset.id;
           if (!id) return;
@@ -264,7 +277,7 @@
           try {
             const res = await fetch('/movements/' + id, { method: 'DELETE' });
             if (res.status === 200) {
-              loadHistory(1,20);
+              loadHistory(1,5);
             } else {
               const j = await res.json(); alert('Error: ' + (j.error || JSON.stringify(j)));
             }
@@ -273,7 +286,7 @@
         }
 
         const editBtn = ev.target.closest('.edit-mov');
-        if (editBtn) {
+          if (editBtn) {
           ev.preventDefault();
           let mstr = editBtn.dataset.m || '';
           mstr = mstr.replace(/&#39;/g, "'");
@@ -312,7 +325,7 @@
           const j = await res.json();
           if (res.status === 200) {
             editModal.hide();
-            loadHistory(1,20);
+            loadHistory(1,5);
             loadAccountBalances();
           } else {
             alert('Error: ' + (j.error || JSON.stringify(j)));
@@ -321,13 +334,19 @@
       });
 
       // Movements history pagination
-      async function loadHistory(page = 1, per_page = 20) {
+      async function loadHistory(page = 1, per_page = 5) {
         const tableEl = document.getElementById('history-table');
         const metaEl = document.getElementById('history-meta');
         const pagerEl = document.getElementById('history-pagination');
+        const typeFilter = document.getElementById('history-type') ? document.getElementById('history-type').value : '';
+        const groupBy = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false;
         tableEl.innerHTML = '<div class="small-muted">Cargando historial...</div>';
         try {
-          const res = await fetch(`/movements/history?page=${page}&per_page=${per_page}`);
+          // if grouped view requested, fetch a larger page to include all items (simple approach)
+          const fetchPer = groupBy ? 1000 : per_page;
+          let url = `/movements/history?page=${page}&per_page=${fetchPer}`;
+          if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+          const res = await fetch(url);
           const j = await res.json();
           if (res.status !== 200) { tableEl.innerHTML = '<div class="text-danger">Error cargando historial</div>'; return; }
           const items = j.items || [];
@@ -335,16 +354,45 @@
           if (items.length === 0) {
             tableEl.innerHTML = '<div class="form-text">No hay movimientos registrados.</div>';
           } else {
-            let h = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th></tr></thead><tbody>';
-            for (const m of items) {
-              const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
-              const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
-              const sign = m.type === 'Ingreso' ? '+' : (m.type === 'Gasto' ? '-' : '');
-              const amtStr = Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              h += `<tr class="${rowClass}"><td>${m.date}</td><td>${m.type}</td><td>${m.account || ''}</td><td>${m.category}</td><td>${m.description || ''}</td><td class="text-end ${amtClass}"><span class="mov-sign">${sign}</span>$ ${amtStr}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-secondary edit-mov" data-m='${JSON.stringify(m).replace(/'/g, "&#39;")}'>Editar</button> <button class="btn btn-sm btn-outline-danger delete-mov" data-id="${m.id}">Eliminar</button></td></tr>`;
+            if (groupBy) {
+              // group items by type and render separate tables
+              pagerEl.style.display = 'none';
+              const groups = { 'Ingreso': [], 'Gasto': [], 'Otra': [] };
+              for (const m of items) {
+                if (m.type === 'Ingreso') groups.Ingreso.push(m);
+                else if (m.type === 'Gasto') groups.Gasto.push(m);
+                else groups.Otra.push(m);
+              }
+              let out = '';
+              for (const key of ['Ingreso','Gasto','Otra']) {
+                const list = groups[key];
+                if (!list || list.length === 0) continue;
+                out += `<h6 class="mt-2">${key} (${list.length})</h6>`;
+                out += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th><th>Acciones</th></tr></thead><tbody>';
+                for (const m of list) {
+                  const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
+                  const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
+                  const sign = m.type === 'Ingreso' ? '+' : (m.type === 'Gasto' ? '-' : '');
+                  const amtStr = Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  out += `<tr class="${rowClass}"><td>${m.date}</td><td>${m.account || ''}</td><td>${m.category}</td><td>${m.description || ''}</td><td class="text-end ${amtClass}"><span class="mov-sign">${sign}</span>$ ${amtStr}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-secondary edit-mov" data-m='${JSON.stringify(m).replace(/'/g, "&#39;")}'>Editar</button> <button class="btn btn-sm btn-outline-danger delete-mov" data-id="${m.id}">Eliminar</button></td></tr>`;
+                }
+                out += '</tbody></table></div>';
+              }
+              tableEl.innerHTML = out;
+            } else {
+              // normal paginated view
+              let h = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th></tr></thead><tbody>';
+              for (const m of items) {
+                const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
+                const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
+                const sign = m.type === 'Ingreso' ? '+' : (m.type === 'Gasto' ? '-' : '');
+                const amtStr = Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                h += `<tr class="${rowClass}"><td>${m.date}</td><td>${m.type}</td><td>${m.account || ''}</td><td>${m.category}</td><td>${m.description || ''}</td><td class="text-end ${amtClass}"><span class="mov-sign">${sign}</span>$ ${amtStr}</td><td class="text-end actions"><button class="btn btn-sm btn-outline-secondary edit-mov" data-m='${JSON.stringify(m).replace(/'/g, "&#39;")}'>Editar</button> <button class="btn btn-sm btn-outline-danger delete-mov" data-id="${m.id}">Eliminar</button></td></tr>`;
+              }
+              h += '</tbody></table></div>';
+              tableEl.innerHTML = h;
+              pagerEl.style.display = '';
             }
-            h += '</tbody></table></div>';
-            tableEl.innerHTML = h;
           }
 
           // build pagination
@@ -380,7 +428,15 @@
       }
 
       // initial history load
-      loadHistory(1, 20);
+      loadHistory(1, 5);
+
+      // wire history controls
+      const historyRefresh = document.getElementById('history-refresh');
+      if (historyRefresh) historyRefresh.addEventListener('click', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 5); });
+      const historyType = document.getElementById('history-type');
+      if (historyType) historyType.addEventListener('change', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 5); });
+      const groupByChk = document.getElementById('group-by-type');
+      if (groupByChk) groupByChk.addEventListener('change', () => { const grp = groupByChk.checked; loadHistory(1, grp ? 1000 : 5); });
 
       // add category flow
       document.getElementById('add-cat-btn').addEventListener('click', () => { document.getElementById('new-cat-name').value = ''; catModal.show(); });
