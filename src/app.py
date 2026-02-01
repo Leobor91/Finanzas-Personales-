@@ -256,6 +256,40 @@ def report_daily():
             pass
 
 
+@app.route('/reports/export', methods=['GET'])
+def report_export():
+    # export movements between two dates as CSV: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+    date_from = request.args.get('from')
+    date_to = request.args.get('to')
+    if not date_from or not date_to:
+        return jsonify({'error': "Parámetros 'from' y 'to' requeridos (YYYY-MM-DD)."}), 400
+    repo = get_repo()
+    try:
+        rows = repo.find_by_criteria(date_from=date_from, date_to=date_to)
+        import csv
+        from io import StringIO
+        si = StringIO()
+        writer = csv.writer(si)
+        writer.writerow(['id', 'date', 'type', 'account', 'category', 'description', 'amount', 'currency', 'fx_rate'])
+        for r in rows:
+            writer.writerow([
+                r.get('id'), r.get('date'), r.get('type'), r.get('account') or '', r.get('category') or '', r.get('description') or '', r.get('amount'), r.get('currency') or 'COP', r.get('fx_rate') or ''
+            ])
+        output = si.getvalue()
+        from flask import Response
+        filename = f"movements_{date_from}_to_{date_to}.csv"
+        resp = Response(output, mimetype='text/csv')
+        resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        try:
+            repo.close()
+        except Exception:
+            pass
+
+
 @app.route('/fx/latest', methods=['GET'])
 def fx_latest():
     # Return latest exchange rates for COP to USD and EUR using exchangerate.host
@@ -594,6 +628,7 @@ def movements_history():
     date_from = request.args.get('from')
     date_to = request.args.get('to')
     category = request.args.get('category')
+    mv_type = request.args.get('type')
 
     repo = get_repo()
     try:
@@ -609,6 +644,10 @@ def movements_history():
         if category:
             where += " AND category LIKE ?"
             params.append(f"%{category}%")
+        if mv_type:
+            # accept exact type values (Ingreso/Gasto)
+            where += " AND type = ?"
+            params.append(mv_type)
 
         # total count
         cnt_sql = f"SELECT COUNT(*) FROM movements {where}"
