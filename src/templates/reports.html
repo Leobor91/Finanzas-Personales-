@@ -80,8 +80,8 @@
                       <option value="">Todas</option>
                     </select>
                     <div class="d-flex" style="gap:8px; align-items:flex-end">
-                      <button id="export-csv" class="btn btn-primary">    Descargar CSV Gastos    </button>
-                      <button id="export-csv-income" class="btn btn-primary">Descargar CSV Ingresos</button>
+                      <button id="export-csv" class="btn btn-primary"><span class="btn-icon">📥</span><span class="btn-text">Reporte Gastos</span></button>
+                      <button id="export-csv-income" class="btn btn-primary"><span class="btn-icon">📥</span><span class="btn-text">Reporte Ingresos</span></button>
                     </div>
                 </div>
               </div>
@@ -555,7 +555,7 @@
         if(!from || !to){ alert('Por favor seleccione fecha inicial y final'); return; }
         const category = document.getElementById('export-category') ? document.getElementById('export-category').value : '';
         // simple navigation to trigger file download for Gastos (include category if provided)
-        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Gasto`;
+        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Gasto&format=xlsx`;
         if(category) url += `&category=${encodeURIComponent(category)}`;
         window.location = url;
       });
@@ -566,8 +566,8 @@
         const from = document.getElementById('export-from').value;
         const to = document.getElementById('export-to').value;
         if(!from || !to){ alert('Por favor seleccione fecha inicial y final'); return; }
-        // download only Ingresos
-        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Ingreso`;
+        // download only Ingresos (Excel)
+        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Ingreso&format=xlsx`;
         window.location = url;
       });
     }
