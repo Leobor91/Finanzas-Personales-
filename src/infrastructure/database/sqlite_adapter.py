@@ -93,7 +93,7 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         self.conn.commit()
         return cur.lastrowid
 
-    def find_by_criteria(self, date_from=None, date_to=None, category=None):
+    def find_by_criteria(self, date_from=None, date_to=None, category=None, type_=None):
         cur = self.conn.cursor()
         sql = "SELECT id, date, type, amount, currency, fx_rate, category, description, account FROM movements WHERE 1=1"
         params = []
@@ -106,6 +106,9 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         if category:
             sql += " AND category LIKE ?"
             params.append(f"%{category}%")
+        if type_:
+            sql += " AND type = ?"
+            params.append(type_)
 
         sql += " ORDER BY date DESC"
         cur.execute(sql, params)

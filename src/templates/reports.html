@@ -73,10 +73,16 @@
             <div class="row mt-2">
               <div class="col-12">
                 <label class="form-label">Exportar Movimientos (Fecha inicio - Fecha fin)</label>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 export-controls">
                   <input id="export-from" type="date" class="form-control">
                   <input id="export-to" type="date" class="form-control">
-                  <button id="export-csv" class="btn btn-outline-secondary">Descargar CSV</button>
+                    <select id="export-category" class="form-select" style="max-width:240px">
+                      <option value="">Todas</option>
+                    </select>
+                    <div class="d-flex" style="gap:8px; align-items:flex-end">
+                      <button id="export-csv" class="btn btn-primary">    Descargar CSV Gastos    </button>
+                      <button id="export-csv-income" class="btn btn-primary">Descargar CSV Ingresos</button>
+                    </div>
                 </div>
               </div>
             </div>
@@ -359,13 +365,16 @@
 
     async function loadReportCategories(){
       const sel = document.getElementById('report-category');
+      const selExport = document.getElementById('export-category');
       sel.innerHTML = '<option value="">Todas</option>';
+      if(selExport) selExport.innerHTML = '<option value="">Todas</option>';
       try{
         const res = await fetch('/categories?type=Gasto');
         const json = await res.json();
         if(res.status===200 && Array.isArray(json)){
           for(const c of json){
             const opt = document.createElement('option'); opt.value=c.name; opt.innerText=c.name; sel.appendChild(opt);
+            if(selExport){ const opt2 = document.createElement('option'); opt2.value=c.name; opt2.innerText=c.name; selExport.appendChild(opt2); }
           }
         }
       }catch(e){ console.error(e); }
@@ -544,8 +553,21 @@
         const from = document.getElementById('export-from').value;
         const to = document.getElementById('export-to').value;
         if(!from || !to){ alert('Por favor seleccione fecha inicial y final'); return; }
-        // simple navigation to trigger file download
-        const url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+        const category = document.getElementById('export-category') ? document.getElementById('export-category').value : '';
+        // simple navigation to trigger file download for Gastos (include category if provided)
+        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Gasto`;
+        if(category) url += `&category=${encodeURIComponent(category)}`;
+        window.location = url;
+      });
+    }
+    const exportIncomeBtn = document.getElementById('export-csv-income');
+    if(exportIncomeBtn){
+      exportIncomeBtn.addEventListener('click', ()=>{
+        const from = document.getElementById('export-from').value;
+        const to = document.getElementById('export-to').value;
+        if(!from || !to){ alert('Por favor seleccione fecha inicial y final'); return; }
+        // download only Ingresos
+        let url = `/reports/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=Ingreso`;
         window.location = url;
       });
     }
