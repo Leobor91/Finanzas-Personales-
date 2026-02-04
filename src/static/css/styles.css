@@ -62,6 +62,15 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
   .export-controls input[type=date], .export-controls .form-select, .export-controls .btn { width: 100%; }
   .export-controls .btn { align-self: stretch; }
 }
+
+/* Button label improvements: icon + short text, prevent wrapping on desktop */
+.export-controls .btn { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.export-controls .btn .btn-icon { font-size: 1.05rem; line-height: 1; }
+.export-controls .btn .btn-text { display: inline-block; }
+@media (max-width: 576px) {
+  .export-controls .btn { justify-content: center; white-space: normal; }
+  .export-controls .btn .btn-text { display: inline; }
+}
 @media (max-width: 576px) {
   .filters-row .col-4, .filters-row .col-sm-4 { flex: 0 0 100%; max-width: 100%; }
   #view { width: 100%; }

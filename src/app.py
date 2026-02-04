@@ -268,11 +268,69 @@ def report_export():
     repo = get_repo()
     try:
         rows = repo.find_by_criteria(date_from=date_from, date_to=date_to, category=category, type_=mtype)
+        fmt = request.args.get('format', '').lower()
+        # helper to parse amounts into numeric values
+        def _to_number(val):
+            if val is None:
+                return 0.0
+            try:
+                return float(val)
+            except Exception:
+                s = str(val).strip()
+                s = s.replace(' ', '')
+                # Handle common thousands/decimal formats: '1.234.567,89' or '1,234,567.89'
+                if s.count('.') > 0 and s.count(',') > 0:
+                    # assume '.' thousands and ',' decimal
+                    if s.rfind(',') > s.rfind('.'):
+                        s = s.replace('.', '').replace(',', '.')
+                else:
+                    s = s.replace(',', '.')
+                try:
+                    return float(s)
+                except Exception:
+                    return 0.0
+
+        total_amount = sum([_to_number(r.get('amount')) for r in rows])
+
+        headers = ['id', 'date', 'type', 'account', 'category', 'description', 'amount', 'currency', 'fx_rate']
+        # If the client requests Excel format, build an .xlsx file
+        if fmt in ('xlsx', 'excel'):
+            try:
+                from openpyxl import Workbook
+                from io import BytesIO
+                wb = Workbook()
+                ws = wb.active
+                ws.append(headers)
+                for r in rows:
+                    amt = _to_number(r.get('amount'))
+                    ws.append([
+                        r.get('id'), r.get('date'), r.get('type'), r.get('account') or '', r.get('category') or '', r.get('description') or '', amt, r.get('currency') or 'COP', r.get('fx_rate') or ''
+                    ])
+                # blank row and total
+                ws.append([''] * len(headers))
+                ws.append(['', '', '', '', '', 'TOTAL', total_amount, '', ''])
+                # set number format for amount column (G)
+                for row in ws.iter_rows(min_row=2, min_col=7, max_col=7, max_row=ws.max_row):
+                    for cell in row:
+                        cell.number_format = '0.00'
+                bio = BytesIO()
+                wb.save(bio)
+                bio.seek(0)
+                from flask import Response
+                suffix = f"_{mtype}" if mtype else ""
+                filename = f"movements_{date_from}_to_{date_to}{suffix}.xlsx"
+                resp = Response(bio.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return resp
+            except Exception as e:
+                return jsonify({'error': f'Error generando Excel: {str(e)}'}), 500
+
+        # default: CSV
         import csv
         from io import StringIO
         si = StringIO()
         writer = csv.writer(si)
-        writer.writerow(['id', 'date', 'type', 'account', 'category', 'description', 'amount', 'currency', 'fx_rate'])
+        writer.writerow(headers)
         def _to_number(val):
             if val is None:
                 return 0.0
