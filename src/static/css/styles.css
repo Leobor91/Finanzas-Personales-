@@ -41,7 +41,7 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
 .kpi-small { font-size:0.95rem; }
 
 /* Filter block improvements */
-# Filters and form controls
+/* Filters and form controls */
 .filters-row .form-label { font-size: 0.85rem; }
 .filters-row .form-control, .filters-row .form-select { min-width: 0; }
 #view { white-space: nowrap; }
