@@ -261,23 +261,53 @@ def report_export():
     # export movements between two dates as CSV: ?from=YYYY-MM-DD&to=YYYY-MM-DD
     date_from = request.args.get('from')
     date_to = request.args.get('to')
+    category = request.args.get('category')
+    mtype = request.args.get('type')
     if not date_from or not date_to:
         return jsonify({'error': "Parámetros 'from' y 'to' requeridos (YYYY-MM-DD)."}), 400
     repo = get_repo()
     try:
-        rows = repo.find_by_criteria(date_from=date_from, date_to=date_to)
+        rows = repo.find_by_criteria(date_from=date_from, date_to=date_to, category=category, type_=mtype)
         import csv
         from io import StringIO
         si = StringIO()
         writer = csv.writer(si)
         writer.writerow(['id', 'date', 'type', 'account', 'category', 'description', 'amount', 'currency', 'fx_rate'])
+        def _to_number(val):
+            if val is None:
+                return 0.0
+            try:
+                return float(val)
+            except Exception:
+                s = str(val).strip()
+                s = s.replace(' ', '')
+                # Handle common thousands/decimal formats: '1.234.567,89' or '1,234,567.89'
+                if s.count('.') > 0 and s.count(',') > 0:
+                    # assume '.' thousands and ',' decimal
+                    if s.rfind(',') > s.rfind('.'):
+                        s = s.replace('.', '').replace(',', '.')
+                else:
+                    s = s.replace(',', '.')
+                try:
+                    return float(s)
+                except Exception:
+                    return 0.0
+
+        total_amount = 0.0
         for r in rows:
+            amt = _to_number(r.get('amount'))
+            total_amount += amt
             writer.writerow([
-                r.get('id'), r.get('date'), r.get('type'), r.get('account') or '', r.get('category') or '', r.get('description') or '', r.get('amount'), r.get('currency') or 'COP', r.get('fx_rate') or ''
+                r.get('id'), r.get('date'), r.get('type'), r.get('account') or '', r.get('category') or '', r.get('description') or '', amt, r.get('currency') or 'COP', r.get('fx_rate') or ''
             ])
+        # blank line for readability
+        writer.writerow([])
+        # place 'TOTAL' under description and the numeric summed amount under amount column
+        writer.writerow(['', '', '', '', '', 'TOTAL', total_amount, '', ''])
         output = si.getvalue()
         from flask import Response
-        filename = f"movements_{date_from}_to_{date_to}.csv"
+        suffix = f"_{mtype}" if mtype else ""
+        filename = f"movements_{date_from}_to_{date_to}{suffix}.csv"
         resp = Response(output, mimetype='text/csv')
         resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
         return resp
