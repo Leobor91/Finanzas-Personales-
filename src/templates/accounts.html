@@ -156,7 +156,7 @@
                             sel.innerHTML = '';
                             for (const acc of list) {
                                 if (acc.name !== j.account) {
-                                    const o = document.createElement('option'); o.value = acc.name; o.innerText = acc.name + ' (' + (acc.initial_balance || 0) + ')'; sel.appendChild(o);
+                                    const o = document.createElement('option'); o.value = acc.name; o.innerText = acc.name ; sel.appendChild(o);
                                 }
                             }
                         } catch (e) { /* ignore */ }
