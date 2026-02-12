@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conteo de Efectivo — Finanzas Personales</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+  {% include 'header.html' %}
+
+  <div class="container">
+    <div class="card centered p-4">
+      <h3>Conteo de Efectivo</h3>
+      <p class="text-muted">Agrega denominaciones, ingresa la cantidad y el total se calculará automáticamente.</p>
+
+      <div class="mb-3">
+        <button id="addRow" class="btn btn-sm btn-primary">Agregar denominación</button>
+        <button id="clearRows" class="btn btn-sm btn-outline-secondary">Limpiar</button>
+      </div>
+
+      <div class="table-responsive">
+        <table id="denomTable" class="table table-sm table-bordered">
+          <thead>
+            <tr>
+              <th style="width:40%">Denominación</th>
+              <th style="width:20%">Cantidad</th>
+              <th style="width:25%">Total</th>
+              <th style="width:15%">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows inserted here -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" class="text-end"><strong>Gran Total</strong></td>
+              <td colspan="2"><input id="grandTotal" class="form-control form-control-sm" readonly value="0"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="mt-3">
+      </div>
+    </div>
+  </div>
+  </div> <!-- close content-offset -->
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      const table = document.getElementById('denomTable').getElementsByTagName('tbody')[0];
+      const addRowBtn = document.getElementById('addRow');
+      const clearBtn = document.getElementById('clearRows');
+      const grandTotalInput = document.getElementById('grandTotal');
+
+      function formatNumber(n){
+        try{ return Number(n).toLocaleString('es-CO'); }catch(e){ return n }
+      }
+
+      function calcRowTotal(row){
+        const denom = parseFloat(row.querySelector('.denom').value || 0) || 0;
+        const qty = parseFloat(row.querySelector('.qty').value || 0) || 0;
+        const total = denom * qty;
+        row.querySelector('.total').value = total ? formatNumber(total) : '';
+        return total;
+      }
+
+      function recalcAll(){
+        let sum = 0;
+        Array.from(table.rows).forEach(r => { sum += calcRowTotal(r) });
+        grandTotalInput.value = formatNumber(sum);
+      }
+
+      function addRow(denom='', qty=''){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input class="form-control form-control-sm denom" type="number" step="any" min="0" value="${denom}"></td>
+          <td><input class="form-control form-control-sm qty" type="number" step="1" min="0" value="${qty}"></td>
+          <td><input class="form-control form-control-sm total" readonly></td>
+          <td><button class="btn btn-sm btn-danger remove">Eliminar</button></td>
+        `;
+        table.appendChild(tr);
+
+        tr.querySelector('.denom').addEventListener('input', ()=> recalcAll());
+        tr.querySelector('.qty').addEventListener('input', ()=> recalcAll());
+        tr.querySelector('.remove').addEventListener('click', ()=>{ tr.remove(); recalcAll(); });
+
+        return tr;
+      }
+
+      addRowBtn.addEventListener('click', (e)=>{ e.preventDefault(); addRow(); });
+      clearBtn.addEventListener('click', (e)=>{ e.preventDefault(); table.innerHTML = ''; recalcAll(); });
+
+      // load saved denominations from server; fallback to presets
+      async function loadSavedDenoms(){
+        try{
+          const res = await fetch('/denominations');
+          if(res.status === 200){
+            const data = await res.json();
+            if(Array.isArray(data) && data.length){
+              data.forEach(d => addRow(d.value, ''));
+              recalcAll();
+              return;
+            }
+          }
+        }catch(e){}
+        const presets = [2000,5000,10000,20000,50000];
+        presets.forEach(d => addRow(d, ''));
+        recalcAll();
+      }
+      loadSavedDenoms();
+
+      // When a denomination input loses focus, attempt to save it to DB
+      table.addEventListener('focusout', async (ev)=>{
+        const el = ev.target;
+        if(el && el.classList && el.classList.contains('denom')){
+          const val = parseFloat(el.value || 0) || 0;
+          if(val > 0){
+            try{
+              await fetch('/denominations', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ value: val }) });
+              // optionally show a subtle saved style
+              el.classList.add('border-success');
+              setTimeout(()=> el.classList.remove('border-success'), 900);
+            }catch(e){ /* ignore save errors */ }
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>

@@ -34,6 +34,12 @@
       {% else %}
         <a href="/ui/settings" class="btn btn-outline-primary btn-sm">Configuración DB</a>
       {% endif %}
+      
+      {% if active == 'cash_count' %}
+        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Conteo Efectivo</a>
+      {% else %}
+        <a href="/ui/cash-count" class="btn btn-outline-primary btn-sm">Conteo Efectivo</a>
+      {% endif %}
     </div>
   </div>
 </header>
