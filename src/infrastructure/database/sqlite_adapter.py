@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS transfers (
     description TEXT
 );
 """
+CREATE_DENOMINATIONS_SQL = """
+CREATE TABLE IF NOT EXISTS denominations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    value REAL NOT NULL UNIQUE,
+    label TEXT
+);
+"""
+
 
 class SQLiteMovementRepository(MovementRepositoryInterface):
     def __init__(self, db_path: Optional[Path] = None):
@@ -62,6 +70,7 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         cur.execute(CREATE_CATEGORIES_SQL)
         cur.execute(CREATE_ACCOUNTS_SQL)
         cur.execute(CREATE_TRANSFERS_SQL)
+        cur.execute(CREATE_DENOMINATIONS_SQL)
         # Ensure icon column exists for older DBs (simple migration)
         try:
             cur.execute("PRAGMA table_info(categories)")
@@ -384,6 +393,25 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         cur.execute("SELECT id, type, name, icon FROM categories ORDER BY type, name")
         rows = cur.fetchall()
         return [{"id": r[0], "type": r[1], "name": r[2], "icon": r[3]} for r in rows]
+
+    # Denominations support
+    def add_denomination(self, value: float, label: str = None):
+        cur = self.conn.cursor()
+        try:
+            cur.execute("INSERT INTO denominations (value, label) VALUES (?, ?)", (value, label))
+            self.conn.commit()
+            return cur.lastrowid
+        except Exception:
+            # If exists, return existing id
+            cur.execute("SELECT id FROM denominations WHERE value = ?", (value,))
+            r = cur.fetchone()
+            return r[0] if r else None
+
+    def list_denominations(self):
+        cur = self.conn.cursor()
+        cur.execute("SELECT id, value, label FROM denominations ORDER BY value DESC")
+        rows = cur.fetchall()
+        return [{"id": r[0], "value": r[1], "label": r[2]} for r in rows]
 
     def delete_category(self, category_id: int):
         cur = self.conn.cursor()

@@ -885,5 +885,49 @@ def post_settings():
     return redirect('/ui/settings')
 
 
+@app.route('/ui/cash-count')
+def ui_cash_count():
+    return render_template('cash_count.html', active='cash_count')
+
+
+@app.route('/denominations', methods=['GET'])
+def list_denominations_api():
+    repo = get_repo()
+    try:
+        denoms = repo.list_denominations()
+        return jsonify(denoms), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        try:
+            repo.close()
+        except Exception:
+            pass
+
+
+@app.route('/denominations', methods=['POST'])
+def post_denomination_api():
+    data = request.get_json() or {}
+    try:
+        val = data.get('value')
+        if val is None:
+            return jsonify({'error': "'value' requerido"}), 400
+        value = float(val)
+    except Exception:
+        return jsonify({'error': "'value' debe ser numérico"}), 400
+    label = data.get('label')
+    repo = get_repo()
+    try:
+        did = repo.add_denomination(value, label)
+        return jsonify({'id': did, 'value': value, 'label': label}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        try:
+            repo.close()
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":
     app.run(debug=True)
