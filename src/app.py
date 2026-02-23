@@ -11,7 +11,7 @@ if __package__ is None:
     project_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(project_root))
 
-from src.infrastructure.database.sqlite_adapter import SQLiteMovementRepository
+from src.infrastructure.database.postgres_adapter import PostgresMovementRepository
 from src.infrastructure.database.postgres_adapter import PostgresMovementRepository
 from datetime import datetime
 from src.core.services.movement_service import MovementService
@@ -21,59 +21,18 @@ app = Flask(__name__, template_folder=str(Path(__file__).resolve().parent / 'tem
 
 
 # Configuration for selectable database file
-CONFIG_PATH = Path.cwd() / 'data' / 'db_config.json'
-
-
-def _ensure_data_dir():
-    cfg_dir = CONFIG_PATH.parent
-    if not cfg_dir.exists():
-        try:
-            cfg_dir.mkdir(parents=True)
-        except Exception:
-            pass
-
-
-def read_db_config():
-    _ensure_data_dir()
-    if not CONFIG_PATH.exists():
-        return {'database': str(Path.cwd() / 'finance_app.db')}
-    try:
-        with open(CONFIG_PATH, 'r', encoding='utf-8') as fh:
-            return json.load(fh)
-    except Exception:
-        return {'database': str(Path.cwd() / 'finance_app.db')}
-
-
-def write_db_config(db_name: str):
-    _ensure_data_dir()
-    try:
-        with open(CONFIG_PATH, 'w', encoding='utf-8') as fh:
-            json.dump({'database': db_name}, fh)
-    except Exception:
-        pass
-
-
-def _resolve_db_path(db_name: str) -> Path:
-    p = Path(db_name)
-    if p.is_absolute():
-        return p
-    # try data/ then cwd
-    candidate = Path.cwd() / db_name
-    if candidate.exists():
-        return candidate
-    candidate2 = Path.cwd() / 'data' / db_name
-    return candidate2 if candidate2.exists() else candidate
+CONFIG_PATH = None
 
 
 def get_repo():
-    # Prefer DATABASE_URL env var (for Render/Postgres). Fall back to data/db_config.json -> sqlite
+    # Enforce Postgres-only: require DATABASE_URL
     db_url = os.environ.get('DATABASE_URL')
-    if db_url and db_url.startswith('postgres'):
-        return PostgresMovementRepository(db_url)
-    cfg = read_db_config()
-    db_name = cfg.get('database') or 'finance_app.db'
-    db_path = _resolve_db_path(db_name)
-    return SQLiteMovementRepository(db_path)
+    if not db_url:
+        raise RuntimeError('DATABASE_URL not set; application is configured for Postgres-only mode')
+    # normalize scheme sometimes provided as postgres://
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    return PostgresMovementRepository(db_url)
 
 
 @app.route("/movements", methods=["POST"])
@@ -209,7 +168,7 @@ def report_years():
     repo = get_repo()
     try:
         cur = repo.conn.cursor()
-        cur.execute("SELECT DISTINCT strftime('%Y', date) as y FROM movements ORDER BY y DESC")
+        cur.execute("SELECT DISTINCT to_char(date,'YYYY') as y FROM movements ORDER BY y DESC")
         rows = cur.fetchall()
         years = [r[0] for r in rows if r[0]]
         return jsonify(years), 200
@@ -726,20 +685,22 @@ def movements_history():
     repo = get_repo()
     try:
         cur = repo.conn.cursor()
+        # Use appropriate parameter placeholder depending on DB backend
+        ph = '%s' if os.environ.get('DATABASE_URL') else '?'
         where = "WHERE 1=1"
         params = []
         if date_from:
-            where += " AND date >= ?"
+            where += f" AND date >= {ph}"
             params.append(date_from)
         if date_to:
-            where += " AND date <= ?"
+            where += f" AND date <= {ph}"
             params.append(date_to)
         if category:
-            where += " AND category LIKE ?"
+            where += f" AND category LIKE {ph}"
             params.append(f"%{category}%")
         if mv_type:
             # accept exact type values (Ingreso/Gasto)
-            where += " AND type = ?"
+            where += f" AND type = {ph}"
             params.append(mv_type)
 
         # total count
@@ -749,7 +710,7 @@ def movements_history():
 
         # fetch paged rows
         offset = (page - 1) * per_page
-        data_sql = f"SELECT id, date, type, amount, currency, fx_rate, category, description, account FROM movements {where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
+        data_sql = f"SELECT id, to_char(date,'YYYY-MM-DD') as date, type, amount, currency, fx_rate, category, description, account FROM movements {where} ORDER BY date DESC, id DESC LIMIT {ph} OFFSET {ph}"
         exec_params = list(params) + [per_page, offset]
         cur.execute(data_sql, tuple(exec_params))
         rows = cur.fetchall()
@@ -800,8 +761,11 @@ def put_category(cat_id):
         # If icon provided, update separately
         if ok and icon is not None:
             cur = repo.conn.cursor()
-            cur.execute("UPDATE categories SET icon = ? WHERE id = ?", (icon, cat_id))
-            repo.conn.commit()
+            cur.execute("UPDATE categories SET icon = %s WHERE id = %s", (icon, cat_id))
+            try:
+                repo.conn.commit()
+            except Exception:
+                pass
         if ok:
             return jsonify({'updated': True}), 200
         return jsonify({'updated': False}), 404
@@ -844,13 +808,9 @@ def ui_categories():
 def ui_settings():
     # list available .db files in cwd and data/
     db_files = []
-    for p in Path.cwd().glob('*.db'):
-        db_files.append(p.name)
-    for p in (Path.cwd() / 'data').glob('*.db') if (Path.cwd() / 'data').exists() else []:
-        if p.name not in db_files:
-            db_files.append(str(Path('data') / p.name))
-    current = read_db_config().get('database')
-    return render_template('settings.html', db_files=db_files, current_db=current, active='settings')
+    # In Postgres-only mode we don't expose local .db selection
+    current = os.environ.get('DATABASE_URL')
+    return render_template('settings.html', db_files=[], current_db=current, active='settings')
 
 
 @app.route('/settings', methods=['POST'])
@@ -878,16 +838,8 @@ def post_settings():
         db_path = p
         stored_value = str(p)
 
-    # Create DB file and initialize schema by instantiating repository
-    try:
-        repo = SQLiteMovementRepository(db_path)
-        repo.close()
-    except Exception:
-        # ignore repo creation errors but still save config
-        pass
-
-    write_db_config(stored_value)
-    return redirect('/ui/settings')
+    # Postgres-only mode: changing local sqlite DB not supported
+    return jsonify({'error': 'Operación no soportada en modo Postgres-only'}), 400
 
 
 @app.route('/ui/cash-count')

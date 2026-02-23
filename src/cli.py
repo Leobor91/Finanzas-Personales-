@@ -1,13 +1,15 @@
 import argparse
 import json
+import os
 from pathlib import Path
-from .infrastructure.database.sqlite_adapter import SQLiteMovementRepository
+from .infrastructure.database.postgres_adapter import PostgresMovementRepository
 from .core.services.movement_service import MovementService
 from .core.domain.exceptions import InvalidAmountError, InvalidDateFormatError, InvalidTypeError
 
 
 def build_parser():
     p = argparse.ArgumentParser(prog="finance", description="Registro de movimientos financieros")
+    p.add_argument("--database-url", dest="database_url", help="Postgres DATABASE_URL (puede usarse en vez de la variable de entorno)")
     p.add_argument("--date", required=True, help="Fecha AAAA-MM-DD")
     p.add_argument("--type", required=True, choices=["Ingreso", "Gasto"], help="Tipo: Ingreso o Gasto")
     p.add_argument("--amount", required=True, help="Monto (numérico, > 0)")
@@ -22,25 +24,14 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # determine DB from config if present
-    cfg_path = Path.cwd() / 'data' / 'db_config.json'
-    db_name = None
-    if cfg_path.exists():
-        try:
-            with open(cfg_path, 'r', encoding='utf-8') as fh:
-                db_name = json.load(fh).get('database')
-        except Exception:
-            db_name = None
-    db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
-    if not db_path.is_absolute():
-        # try cwd then data/
-        candidate = Path.cwd() / db_path
-        if candidate.exists():
-            db_path = candidate
-        else:
-            db_path = Path.cwd() / 'data' / db_path.name
-
-    repo = SQLiteMovementRepository(db_path)
+    # determine Postgres URL from arg or env
+    db_url = args.database_url or os.environ.get('DATABASE_URL')
+    if not db_url:
+        print('DATABASE_URL no configurada. Use --database-url o la variable de entorno.')
+        return 2
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    repo = PostgresMovementRepository(db_url)
     service = MovementService(repo)
     try:
         movement_id = service.create_movement(
@@ -88,23 +79,13 @@ if __name__ == "__main__":
             p.add_argument("--month", required=True)
             p.add_argument("--year", required=True)
             args2 = p.parse_args(argv[2:])
-            # report CLI should respect config
-            cfg_path = Path.cwd() / 'data' / 'db_config.json'
-            db_name = None
-            if cfg_path.exists():
-                try:
-                    with open(cfg_path, 'r', encoding='utf-8') as fh:
-                        db_name = json.load(fh).get('database')
-                except Exception:
-                    db_name = None
-            db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
-            if not db_path.is_absolute():
-                candidate = Path.cwd() / db_path
-                if candidate.exists():
-                    db_path = candidate
-                else:
-                    db_path = Path.cwd() / 'data' / db_path.name
-            repo = SQLiteMovementRepository(db_path)
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                print('DATABASE_URL no configurada. Configure la variable de entorno para usar la CLI de reportes.')
+                raise SystemExit(2)
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql://', 1)
+            repo = PostgresMovementRepository(db_url)
             try:
                 from .core.services.report_service import ReportService
 
@@ -115,22 +96,13 @@ if __name__ == "__main__":
                 repo.close()
             raise SystemExit(0)
         if len(argv) >= 2 and argv[1] == "categories":
-            cfg_path = Path.cwd() / 'data' / 'db_config.json'
-            db_name = None
-            if cfg_path.exists():
-                try:
-                    with open(cfg_path, 'r', encoding='utf-8') as fh:
-                        db_name = json.load(fh).get('database')
-                except Exception:
-                    db_name = None
-            db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
-            if not db_path.is_absolute():
-                candidate = Path.cwd() / db_path
-                if candidate.exists():
-                    db_path = candidate
-                else:
-                    db_path = Path.cwd() / 'data' / db_path.name
-            repo = SQLiteMovementRepository(db_path)
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                print('DATABASE_URL no configurada. Configure la variable de entorno para usar la CLI de reportes.')
+                raise SystemExit(2)
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql://', 1)
+            repo = PostgresMovementRepository(db_url)
             try:
                 from .core.services.report_service import ReportService
 
@@ -166,22 +138,13 @@ def build_list_parser():
 def list_main(argv=None):
     parser = build_list_parser()
     args = parser.parse_args(argv)
-    cfg_path = Path.cwd() / 'data' / 'db_config.json'
-    db_name = None
-    if cfg_path.exists():
-        try:
-            with open(cfg_path, 'r', encoding='utf-8') as fh:
-                db_name = json.load(fh).get('database')
-        except Exception:
-            db_name = None
-    db_path = Path(db_name) if db_name else Path.cwd() / 'finance_app.db'
-    if not db_path.is_absolute():
-        candidate = Path.cwd() / db_path
-        if candidate.exists():
-            db_path = candidate
-        else:
-            db_path = Path.cwd() / 'data' / db_path.name
-    repo = SQLiteMovementRepository(db_path)
+    db_url = os.environ.get('DATABASE_URL')
+    if not db_url:
+        print('DATABASE_URL no configurada. Configure la variable de entorno para usar la CLI.')
+        return 2
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    repo = PostgresMovementRepository(db_url)
     try:
         from .core.services.query_service import MovementQueryService
 
