@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS movements (
     fx_rate REAL,
     category TEXT NOT NULL,
     description TEXT,
-    account TEXT
+    account TEXT,
+    user_id INTEGER
 );
 """
 
@@ -24,17 +25,21 @@ CREATE_CATEGORIES_SQL = """
 CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL CHECK(type IN ('Ingreso','Gasto')),
-    name TEXT NOT NULL UNIQUE,
-    icon TEXT
+    name TEXT NOT NULL,
+    icon TEXT,
+    user_id INTEGER,
+    UNIQUE(type, name, user_id)
 );
 """
 
 CREATE_ACCOUNTS_SQL = """
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     initial_balance REAL NOT NULL DEFAULT 0.0,
-    currency TEXT NOT NULL DEFAULT 'COP'
+    currency TEXT NOT NULL DEFAULT 'COP',
+    user_id INTEGER,
+    UNIQUE(name, user_id)
 );
 """
 
@@ -47,6 +52,7 @@ CREATE TABLE IF NOT EXISTS transfers (
     amount REAL NOT NULL,
     currency TEXT NOT NULL DEFAULT 'COP',
     description TEXT
+    , user_id INTEGER
 );
 """
 CREATE_DENOMINATIONS_SQL = """
@@ -54,8 +60,10 @@ CREATE TABLE IF NOT EXISTS denominations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     value REAL NOT NULL UNIQUE,
     label TEXT
+    , user_id INTEGER
 );
 """
+
 
 
 class SQLiteMovementRepository(MovementRepositoryInterface):
@@ -77,6 +85,8 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
             cols = [r[1] for r in cur.fetchall()]
             if 'icon' not in cols:
                 cur.execute("ALTER TABLE categories ADD COLUMN icon TEXT")
+            if 'user_id' not in cols:
+                cur.execute("ALTER TABLE categories ADD COLUMN user_id INTEGER")
         except Exception:
             pass
         # Ensure movements table has currency and fx_rate columns for older DBs
@@ -89,23 +99,59 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
                 cur.execute("ALTER TABLE movements ADD COLUMN fx_rate REAL")
             if 'account' not in mcols:
                 cur.execute("ALTER TABLE movements ADD COLUMN account TEXT")
+            if 'user_id' not in mcols:
+                cur.execute("ALTER TABLE movements ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+        # Ensure accounts, transfers, denominations have user_id
+        try:
+            cur.execute("PRAGMA table_info(accounts)")
+            acols = [r[1] for r in cur.fetchall()]
+            if 'user_id' not in acols:
+                cur.execute("ALTER TABLE accounts ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+        try:
+            cur.execute("PRAGMA table_info(transfers)")
+            tcols = [r[1] for r in cur.fetchall()]
+            if 'user_id' not in tcols:
+                cur.execute("ALTER TABLE transfers ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+        try:
+            cur.execute("PRAGMA table_info(denominations)")
+            dcols = [r[1] for r in cur.fetchall()]
+            if 'user_id' not in dcols:
+                cur.execute("ALTER TABLE denominations ADD COLUMN user_id INTEGER")
         except Exception:
             pass
         self.conn.commit()
 
-    def save(self, movement):
+    def save(self, movement, user_id: int | None = None):
         cur = self.conn.cursor()
-        cur.execute(
-            "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (movement.date, movement.type, movement.amount, movement.currency, movement.fx_rate, movement.category, movement.description, getattr(movement, 'account', None)),
-        )
+        # ensure movement.user_id if passed
+        if getattr(movement, 'user_id', None) is None and user_id is not None:
+            movement.user_id = user_id
+        if getattr(movement, 'user_id', None) is not None:
+            cur.execute(
+                "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (movement.date, movement.type, movement.amount, movement.currency, movement.fx_rate, movement.category, movement.description, getattr(movement, 'account', None), movement.user_id),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (movement.date, movement.type, movement.amount, movement.currency, movement.fx_rate, movement.category, movement.description, getattr(movement, 'account', None)),
+            )
         self.conn.commit()
         return cur.lastrowid
 
-    def find_by_criteria(self, date_from=None, date_to=None, category=None, type_=None):
+    def find_by_criteria(self, date_from=None, date_to=None, category=None, type_=None, user_id: int | None = None):
         cur = self.conn.cursor()
         sql = "SELECT id, date, type, amount, currency, fx_rate, category, description, account FROM movements WHERE 1=1"
         params = []
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
         if date_from:
             sql += " AND date >= ?"
             params.append(date_from)
@@ -247,15 +293,21 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         rows = cur.fetchall()
         return [{"id": r[0], "name": r[1], "initial_balance": r[2], "currency": r[3]} for r in rows]
 
-    def add_account(self, name: str, initial_balance: float = 0.0, currency: str = 'COP'):
+    def add_account(self, name: str, initial_balance: float = 0.0, currency: str = 'COP', user_id: int | None = None):
         cur = self.conn.cursor()
         try:
-            cur.execute("INSERT INTO accounts (name, initial_balance, currency) VALUES (?, ?, ?)", (name, initial_balance, currency))
+            if user_id is not None:
+                cur.execute("INSERT INTO accounts (name, initial_balance, currency, user_id) VALUES (?, ?, ?, ?)", (name, initial_balance, currency, user_id))
+            else:
+                cur.execute("INSERT INTO accounts (name, initial_balance, currency) VALUES (?, ?, ?)", (name, initial_balance, currency))
             self.conn.commit()
             return cur.lastrowid
         except Exception:
             # if exists, return existing id
-            cur.execute("SELECT id FROM accounts WHERE name = ?", (name,))
+            if user_id is not None:
+                cur.execute("SELECT id FROM accounts WHERE name = ? AND user_id = ?", (name, user_id))
+            else:
+                cur.execute("SELECT id FROM accounts WHERE name = ?", (name,))
             r = cur.fetchone()
             return r[0] if r else None
 
@@ -376,21 +428,30 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         self.conn.commit()
         return cur.rowcount > 0
 
-    def add_category(self, type: str, name: str, icon: str = None):
+    def add_category(self, type: str, name: str, icon: str = None, user_id: int | None = None):
         cur = self.conn.cursor()
         try:
-            cur.execute("INSERT INTO categories (type, name, icon) VALUES (?, ?, ?)", (type, name, icon))
+            if user_id is not None:
+                cur.execute("INSERT INTO categories (type, name, icon, user_id) VALUES (?, ?, ?, ?)", (type, name, icon, user_id))
+            else:
+                cur.execute("INSERT INTO categories (type, name, icon) VALUES (?, ?, ?)", (type, name, icon))
             self.conn.commit()
             return cur.lastrowid
         except Exception:
             # If exists, return existing id
-            cur.execute("SELECT id FROM categories WHERE name = ? AND type = ?", (name, type))
+            if user_id is not None:
+                cur.execute("SELECT id FROM categories WHERE name = ? AND type = ? AND user_id = ?", (name, type, user_id))
+            else:
+                cur.execute("SELECT id FROM categories WHERE name = ? AND type = ?", (name, type))
             r = cur.fetchone()
             return r[0] if r else None
 
-    def list_all_categories(self):
+    def list_all_categories(self, user_id: int | None = None):
         cur = self.conn.cursor()
-        cur.execute("SELECT id, type, name, icon FROM categories ORDER BY type, name")
+        if user_id is None:
+            cur.execute("SELECT id, type, name, icon FROM categories ORDER BY type, name")
+        else:
+            cur.execute("SELECT id, type, name, icon FROM categories WHERE user_id = ? ORDER BY type, name", (user_id,))
         rows = cur.fetchall()
         return [{"id": r[0], "type": r[1], "name": r[2], "icon": r[3]} for r in rows]
 

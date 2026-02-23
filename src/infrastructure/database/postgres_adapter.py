@@ -1,6 +1,7 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from werkzeug.security import generate_password_hash, check_password_hash
 from urllib.parse import urlparse, parse_qs, urlunparse
 from typing import Optional
 
@@ -18,7 +19,8 @@ CREATE_TABLES_SQL = (
         fx_rate DOUBLE PRECISION,
         category TEXT NOT NULL,
         description TEXT,
-        account TEXT
+        account TEXT,
+        user_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -31,9 +33,10 @@ CREATE_TABLES_SQL = (
 
     CREATE TABLE IF NOT EXISTS accounts (
         id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
         initial_balance DOUBLE PRECISION NOT NULL DEFAULT 0.0,
         currency TEXT NOT NULL DEFAULT 'COP'
+        , user_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS transfers (
@@ -44,12 +47,21 @@ CREATE_TABLES_SQL = (
         amount DOUBLE PRECISION NOT NULL,
         currency TEXT NOT NULL DEFAULT 'COP',
         description TEXT
+        , user_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS denominations (
         id SERIAL PRIMARY KEY,
         value DOUBLE PRECISION NOT NULL UNIQUE,
         label TEXT
+        , user_id INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT
     );
     """
 )
@@ -83,22 +95,66 @@ class PostgresMovementRepository(MovementRepositoryInterface):
     def _init_db(self):
         cur = self._conn.cursor()
         cur.execute(CREATE_TABLES_SQL)
-        cur.close()
+        # Ensure `user_id` column exists on tables (lazy migration)
+        try:
+            cur.execute("ALTER TABLE movements ADD COLUMN IF NOT EXISTS user_id INTEGER")
+            cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS user_id INTEGER")
+            cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS user_id INTEGER")
+            cur.execute("ALTER TABLE transfers ADD COLUMN IF NOT EXISTS user_id INTEGER")
+            cur.execute("ALTER TABLE denominations ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        except Exception:
+            # If DB doesn't support IF NOT EXISTS for ALTER (older PG), attempt safe checks
+            try:
+                # check and add movements.user_id
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='movements' AND column_name='user_id'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE movements ADD COLUMN user_id INTEGER")
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='categories' AND column_name='user_id'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE categories ADD COLUMN user_id INTEGER")
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='accounts' AND column_name='user_id'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE accounts ADD COLUMN user_id INTEGER")
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='transfers' AND column_name='user_id'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE transfers ADD COLUMN user_id INTEGER")
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='denominations' AND column_name='user_id'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE denominations ADD COLUMN user_id INTEGER")
+            except Exception:
+                # swallow; best-effort migration
+                pass
+        finally:
+            cur.close()
 
-    def save(self, movement):
+    def save(self, movement, user_id: int | None = None):
         cur = self._conn.cursor()
-        cur.execute(
-            "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-            (movement.date, movement.type, movement.amount, movement.currency, movement.fx_rate, movement.category, movement.description, getattr(movement, 'account', None)),
-        )
+        # include user_id if present
+        # ensure movement.user_id is set either from movement or passed user_id
+        if getattr(movement, 'user_id', None) is None and user_id is not None:
+            movement.user_id = user_id
+        vals = [movement.date, movement.type, movement.amount, movement.currency, movement.fx_rate, movement.category, movement.description, getattr(movement, 'account', None)]
+        if getattr(movement, 'user_id', None) is not None:
+            cur.execute(
+                "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                tuple(vals) + (movement.user_id,)
+            )
+        else:
+            cur.execute(
+                "INSERT INTO movements (date, type, amount, currency, fx_rate, category, description, account) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                tuple(vals)
+            )
         mid = cur.fetchone()[0]
         cur.close()
         return mid
 
-    def find_by_criteria(self, date_from=None, date_to=None, category=None, type_=None):
+    def find_by_criteria(self, date_from=None, date_to=None, category=None, type_=None, user_id: int | None = None):
         cur = self._conn.cursor(cursor_factory=RealDictCursor)
         sql = "SELECT id, to_char(date,'YYYY-MM-DD') as date, type, amount, currency, fx_rate, category, description, account FROM movements WHERE 1=1"
         params = []
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
         if date_from:
             sql += " AND date >= %s"
             params.append(date_from)
@@ -215,12 +271,49 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return [{"id": r[0], "name": r[1], "icon": r[2]} for r in rows]
 
-    def list_all_categories(self):
+    def list_all_categories(self, user_id: int | None = None):
         cur = self._conn.cursor()
-        cur.execute("SELECT id, type, name, icon FROM categories ORDER BY type, name")
+        if user_id is None:
+            cur.execute("SELECT id, type, name, icon FROM categories ORDER BY type, name")
+        else:
+            cur.execute("SELECT id, type, name, icon FROM categories WHERE user_id = %s ORDER BY type, name", (user_id,))
         rows = cur.fetchall()
         cur.close()
         return [{"id": r[0], "type": r[1], "name": r[2], "icon": r[3]} for r in rows]
+
+    # Users
+    def add_user(self, username: str, password: str, role: str = 'user'):
+        username = (username or '').strip().lower()
+        cur = self._conn.cursor()
+        pw_hash = generate_password_hash(password)
+        try:
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) RETURNING id", (username, pw_hash, role))
+            uid = cur.fetchone()[0]
+            cur.close()
+            return uid
+        except Exception:
+            # possible duplicate
+            try:
+                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                r = cur.fetchone()
+                cur.close()
+                return r[0] if r else None
+            except Exception:
+                cur.close()
+                raise
+
+    def authenticate_user(self, username: str, password: str):
+        username = (username or '').strip().lower()
+        cur = self._conn.cursor()
+        cur.execute("SELECT id, password_hash FROM users WHERE lower(trim(username)) = %s", (username,))
+        r = cur.fetchone()
+        cur.close()
+        if not r:
+            return None
+        uid, pw_hash = r
+        if check_password_hash(pw_hash, password):
+            return uid
+        return None
 
     # Accounts
     def list_accounts(self):
@@ -230,16 +323,22 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return [{"id": r[0], "name": r[1], "initial_balance": r[2], "currency": r[3]} for r in rows]
 
-    def add_account(self, name: str, initial_balance: float = 0.0, currency: str = 'COP'):
+    def add_account(self, name: str, initial_balance: float = 0.0, currency: str = 'COP', user_id: int | None = None):
         cur = self._conn.cursor()
         try:
-            cur.execute("INSERT INTO accounts (name, initial_balance, currency) VALUES (%s, %s, %s) RETURNING id", (name, initial_balance, currency))
+            if user_id is not None:
+                cur.execute("INSERT INTO accounts (name, initial_balance, currency, user_id) VALUES (%s, %s, %s, %s) RETURNING id", (name, initial_balance, currency, user_id))
+            else:
+                cur.execute("INSERT INTO accounts (name, initial_balance, currency) VALUES (%s, %s, %s) RETURNING id", (name, initial_balance, currency))
             aid = cur.fetchone()[0]
             cur.close()
             return aid
         except Exception:
             # exists
-            cur.execute("SELECT id FROM accounts WHERE name = %s", (name,))
+            if user_id is not None:
+                cur.execute("SELECT id FROM accounts WHERE name = %s AND user_id = %s", (name, user_id))
+            else:
+                cur.execute("SELECT id FROM accounts WHERE name = %s", (name,))
             r = cur.fetchone()
             cur.close()
             return r[0] if r else None
@@ -251,25 +350,31 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return deleted
 
-    def get_accounts_with_balances(self):
+    def get_accounts_with_balances(self, user_id: int | None = None):
         cur = self._conn.cursor()
         sql = """
         SELECT a.name,
             a.initial_balance
-            + COALESCE((SELECT SUM(CASE WHEN m.type='Ingreso' THEN m.amount WHEN m.type='Gasto' THEN -m.amount ELSE 0 END) FROM movements m WHERE m.account = a.name), 0)
-            + COALESCE((SELECT SUM(t.amount) FROM transfers t WHERE t.to_account = a.name), 0)
-            - COALESCE((SELECT SUM(t.amount) FROM transfers t WHERE t.from_account = a.name), 0) as balance,
+            + COALESCE((SELECT SUM(CASE WHEN m.type='Ingreso' THEN m.amount WHEN m.type='Gasto' THEN -m.amount ELSE 0 END) FROM movements m WHERE m.account = a.name AND m.user_id = a.user_id), 0)
+            + COALESCE((SELECT SUM(t.amount) FROM transfers t WHERE t.to_account = a.name AND t.user_id = a.user_id), 0)
+            - COALESCE((SELECT SUM(t.amount) FROM transfers t WHERE t.from_account = a.name AND t.user_id = a.user_id), 0) as balance,
         a.currency
-        FROM accounts a ORDER BY a.name
+        FROM accounts a
         """
-        cur.execute(sql)
+        if user_id is None:
+            cur.execute(sql + " ORDER BY a.name")
+        else:
+            cur.execute(sql + " WHERE a.user_id = %s ORDER BY a.name", (user_id,))
         rows = cur.fetchall()
         cur.close()
         return [{"name": r[0], "balance": r[1], "currency": r[2]} for r in rows]
 
-    def get_movements_by_account(self, account: str):
+    def get_movements_by_account(self, account: str, user_id: int | None = None):
         cur = self._conn.cursor()
-        cur.execute("SELECT id, to_char(date,'YYYY-MM-DD') as date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = %s ORDER BY date DESC", (account,))
+        if user_id is None:
+            cur.execute("SELECT id, to_char(date,'YYYY-MM-DD') as date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = %s ORDER BY date DESC", (account,))
+        else:
+            cur.execute("SELECT id, to_char(date,'YYYY-MM-DD') as date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = %s AND user_id = %s ORDER BY date DESC", (account, user_id))
         rows = cur.fetchall()
         cur.close()
         results = []
@@ -279,7 +384,7 @@ class PostgresMovementRepository(MovementRepositoryInterface):
             })
         return results
 
-    def transfer_funds(self, from_account: str, to_account: str, amount: float, date: str, description: str = '', currency: str = 'COP'):
+    def transfer_funds(self, from_account: str, to_account: str, amount: float, date: str, description: str = '', currency: str = 'COP', user_id: int | None = None):
         cur = self._conn.cursor()
         # compute current balance similar to sqlite logic
         sql = """
@@ -296,7 +401,10 @@ class PostgresMovementRepository(MovementRepositoryInterface):
             cur.close()
             raise ValueError('insufficient_funds')
         try:
-            cur.execute("INSERT INTO transfers (date, from_account, to_account, amount, currency, description) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id", (date, from_account, to_account, amount, currency, description))
+            if user_id is not None:
+                cur.execute("INSERT INTO transfers (date, from_account, to_account, amount, currency, description, user_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id", (date, from_account, to_account, amount, currency, description, user_id))
+            else:
+                cur.execute("INSERT INTO transfers (date, from_account, to_account, amount, currency, description) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id", (date, from_account, to_account, amount, currency, description))
             tid = cur.fetchone()[0]
             cur.close()
             return tid
@@ -343,28 +451,40 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return ok
 
-    def add_category(self, type: str, name: str, icon: str = None):
+    def add_category(self, type: str, name: str, icon: str = None, user_id: int | None = None):
         cur = self._conn.cursor()
         try:
-            cur.execute("INSERT INTO categories (type, name, icon) VALUES (%s, %s, %s) RETURNING id", (type, name, icon))
+            if user_id is not None:
+                cur.execute("INSERT INTO categories (type, name, icon, user_id) VALUES (%s, %s, %s, %s) RETURNING id", (type, name, icon, user_id))
+            else:
+                cur.execute("INSERT INTO categories (type, name, icon) VALUES (%s, %s, %s) RETURNING id", (type, name, icon))
             cid = cur.fetchone()[0]
             cur.close()
             return cid
         except Exception:
-            cur.execute("SELECT id FROM categories WHERE name = %s AND type = %s", (name, type))
+            if user_id is not None:
+                cur.execute("SELECT id FROM categories WHERE name = %s AND type = %s AND user_id = %s", (name, type, user_id))
+            else:
+                cur.execute("SELECT id FROM categories WHERE name = %s AND type = %s", (name, type))
             r = cur.fetchone()
             cur.close()
             return r[0] if r else None
 
-    def add_denomination(self, value: float, label: str = None):
+    def add_denomination(self, value: float, label: str = None, user_id: int | None = None):
         cur = self._conn.cursor()
         try:
-            cur.execute("INSERT INTO denominations (value, label) VALUES (%s, %s) RETURNING id", (value, label))
+            if user_id is not None:
+                cur.execute("INSERT INTO denominations (value, label, user_id) VALUES (%s, %s, %s) RETURNING id", (value, label, user_id))
+            else:
+                cur.execute("INSERT INTO denominations (value, label) VALUES (%s, %s) RETURNING id", (value, label))
             did = cur.fetchone()[0]
             cur.close()
             return did
         except Exception:
-            cur.execute("SELECT id FROM denominations WHERE value = %s", (value,))
+            if user_id is not None:
+                cur.execute("SELECT id FROM denominations WHERE value = %s AND user_id = %s", (value, user_id))
+            else:
+                cur.execute("SELECT id FROM denominations WHERE value = %s", (value,))
             r = cur.fetchone()
             cur.close()
             return r[0] if r else None

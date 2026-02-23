@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 import sys
 from pathlib import Path
 from flask import render_template, redirect
@@ -18,6 +18,33 @@ from src.core.services.movement_service import MovementService
 from src.core.domain.exceptions import InvalidAmountError, InvalidDateFormatError, InvalidTypeError
 
 app = Flask(__name__, template_folder=str(Path(__file__).resolve().parent / 'templates'), static_folder=str(Path(__file__).resolve().parent / 'static'))
+
+# Session secret
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+
+from functools import wraps
+from flask import url_for
+
+
+def login_required(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if not session.get('user_id'):
+            return redirect(url_for('ui_login'))
+        return f(*args, **kwargs)
+    return wrapped
+
+
+# Prevent browsers from caching authenticated pages so back-button won't show protected content
+@app.after_request
+def add_no_cache_headers(response):
+    try:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    except Exception:
+        pass
+    return response
 
 
 # Configuration for selectable database file
@@ -41,6 +68,11 @@ def create_movement():
     # require account to be provided
     if not data.get('account'):
         return jsonify({'error': 'account requerido'}), 400
+    # require authentication
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     service = MovementService(repo)
     try:
@@ -53,6 +85,7 @@ def create_movement():
             currency=data.get("currency", 'COP'),
             fx_rate=data.get("fx_rate", None),
             account=data.get("account"),
+            user_id=uid,
         )
         return jsonify({"id": movement_id}), 201
     except InvalidAmountError:
@@ -81,12 +114,15 @@ def list_movements():
         date_from = request.args.get("from")
         date_to = request.args.get("to")
     category = request.args.get("category")
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
         from src.core.services.query_service import MovementQueryService
 
         qs = MovementQueryService(repo)
-        results = qs.find(date_from=date_from, date_to=date_to, category=category)
+        results = qs.find(date_from=date_from, date_to=date_to, category=category, user_id=uid)
         return jsonify(results), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -403,9 +439,12 @@ def post_category():
     icon = data.get('icon')
     if type_q not in ('Ingreso', 'Gasto') or not name:
         return jsonify({'error': "JSON debe contener 'type' ('Ingreso'|'Gasto') y 'name'"}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        cid = repo.add_category(type_q, name, icon)
+        cid = repo.add_category(type_q, name, icon, user_id=uid)
         return jsonify({'id': cid, 'name': name, 'icon': icon}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -425,9 +464,10 @@ def get_all_categories():
     if 'text/html' in accept_hdr and not is_ajax:
         return redirect('/ui/categories')
 
+    uid = session.get('user_id')
     repo = get_repo()
     try:
-        cats = repo.list_all_categories()
+        cats = repo.list_all_categories(user_id=uid)
         return jsonify(cats), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -440,6 +480,9 @@ def get_all_categories():
 
 @app.route('/accounts', methods=['GET'])
 def get_accounts():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
         return jsonify(repo.list_accounts()), 200
@@ -454,6 +497,9 @@ def get_accounts():
 
 @app.route('/accounts/balances', methods=['GET'])
 def get_accounts_balances():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
         return jsonify(repo.get_accounts_with_balances()), 200
@@ -474,9 +520,12 @@ def post_account():
     currency = data.get('currency', 'COP')
     if not name:
         return jsonify({'error': 'name requerido'}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        aid = repo.add_account(name, initial, currency)
+        aid = repo.add_account(name, initial, currency, user_id=uid)
         return jsonify({'id': aid, 'name': name, 'initial_balance': initial, 'currency': currency}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -488,10 +537,12 @@ def post_account():
 
 
 @app.route('/ui/accounts')
+@login_required
 def ui_accounts():
     repo = get_repo()
     try:
-        accounts = repo.get_accounts_with_balances()
+        uid = session.get('user_id')
+        accounts = repo.get_accounts_with_balances(user_id=uid)
         total = sum(a['balance'] for a in accounts)
         return render_template('accounts.html', accounts=accounts, total=total, active='accounts')
     finally:
@@ -503,9 +554,12 @@ def ui_accounts():
 
 @app.route('/accounts/<account_name>/movements', methods=['GET'])
 def get_account_movements(account_name):
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        movements = repo.get_movements_by_account(account_name)
+        movements = repo.get_movements_by_account(account_name, user_id=uid)
         balances = repo.get_accounts_with_balances()
         bal = next((a for a in balances if a['name'] == account_name), {'balance': 0.0, 'currency': 'COP'})
         return jsonify({'account': account_name, 'balance': bal.get('balance', 0.0), 'currency': bal.get('currency','COP'), 'movements': movements}), 200
@@ -576,9 +630,12 @@ def post_account_transfer():
     if amount <= 0:
         return jsonify({'error': 'amount debe ser mayor a cero'}), 400
 
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        tid = repo.transfer_funds(src_ac, dst_ac, amount, date, description)
+        tid = repo.transfer_funds(src_ac, dst_ac, amount, date, description, user_id=uid)
         return jsonify({'transferred': True, 'transfer_id': tid}), 201
     except ValueError as ve:
         # insufficient funds
@@ -596,6 +653,9 @@ def post_account_transfer():
 
 @app.route('/transfers', methods=['GET'])
 def get_transfers():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
         return jsonify(repo.list_transfers()), 200
@@ -682,13 +742,18 @@ def movements_history():
     category = request.args.get('category')
     mv_type = request.args.get('type')
 
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
         cur = repo.conn.cursor()
         # Use appropriate parameter placeholder depending on DB backend
         ph = '%s' if os.environ.get('DATABASE_URL') else '?'
         where = "WHERE 1=1"
-        params = []
+        # restrict to user's rows
+        where += " AND user_id = %s"
+        params = [uid]
         if date_from:
             where += f" AND date >= {ph}"
             params.append(date_from)
@@ -783,19 +848,25 @@ from flask import render_template
 
 @app.route("/")
 def ui_index():
+    # If not authenticated, show login (home for anon users)
+    if not session.get('user_id'):
+        return redirect(url_for('ui_login'))
     return render_template('index.html', active='index')
 
 
 @app.route("/ui/reports")
+@login_required
 def ui_reports():
     return render_template('reports.html', active='reports')
 
 
 @app.route('/ui/categories')
+@login_required
 def ui_categories():
     repo = get_repo()
     try:
-        cats = repo.list_all_categories()
+        uid = session.get('user_id')
+        cats = repo.list_all_categories(user_id=uid)
         return render_template('categories.html', initial_categories=cats, active='categories')
     finally:
         try:
@@ -805,6 +876,7 @@ def ui_categories():
 
 
 @app.route('/ui/settings')
+@login_required
 def ui_settings():
     # list available .db files in cwd and data/
     db_files = []
@@ -843,8 +915,90 @@ def post_settings():
 
 
 @app.route('/ui/cash-count')
+@login_required
 def ui_cash_count():
     return render_template('cash_count.html', active='cash_count')
+
+
+@app.route('/ui/register', methods=['GET', 'POST'])
+def ui_register():
+    repo = None
+    if request.method == 'GET':
+        return render_template('register.html', active='register', error=None, success=None)
+
+    # POST
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    role = (request.form.get('role') or 'user').strip() or 'user'
+    if not username or not password:
+        return render_template('register.html', active='register', error='Usuario y contraseña requeridos', success=None)
+    try:
+        repo = get_repo()
+        uid = repo.add_user(username, password, role)
+        if uid:
+            return render_template('register.html', active='register', error=None, success=True)
+        return render_template('register.html', active='register', error='No se pudo crear el usuario', success=None)
+    except Exception as e:
+        return render_template('register.html', active='register', error=str(e), success=None)
+    finally:
+        try:
+            if repo:
+                repo.close()
+        except Exception:
+            pass
+
+
+
+@app.route('/ui/login', methods=['GET', 'POST'])
+def ui_login():
+    if request.method == 'GET':
+        return render_template('login.html', active='login', error=None)
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    # server-side required check
+    if not username or not password:
+        # if AJAX request, return JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': 'Usuario y contraseña requeridos'}), 400
+        return render_template('login.html', active='login', error='Usuario y contraseña requeridos')
+    repo = None
+    try:
+        repo = get_repo()
+        uid = repo.authenticate_user(username, password)
+        if uid:
+            session['user_id'] = uid
+            session['username'] = username
+            # AJAX callers expect JSON
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'ok': True}), 200
+            return redirect('/')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': 'Usuario o contraseña inválidos'}), 401
+        return render_template('login.html', active='login', error='Usuario o contraseña inválidos')
+    except Exception as e:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'ok': False, 'error': str(e)}), 500
+        return render_template('login.html', active='login', error=str(e))
+    finally:
+        try:
+            if repo:
+                repo.close()
+        except Exception:
+            pass
+
+
+@app.route('/logout')
+def logout():
+    # Clear server session and remove session cookie, then redirect to login
+    session.clear()
+    redirect_url = url_for('ui_login') + '?logged_out=1'
+    resp = redirect(redirect_url)
+    try:
+        # remove session cookie on client
+        resp.set_cookie(app.session_cookie_name, '', expires=0)
+    except Exception:
+        pass
+    return resp
 
 
 @app.route('/denominations', methods=['GET'])
@@ -873,9 +1027,12 @@ def post_denomination_api():
     except Exception:
         return jsonify({'error': "'value' debe ser numérico"}), 400
     label = data.get('label')
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        did = repo.add_denomination(value, label)
+        did = repo.add_denomination(value, label, user_id=uid)
         return jsonify({'id': did, 'value': value, 'label': label}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400

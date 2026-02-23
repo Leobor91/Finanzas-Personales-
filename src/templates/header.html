@@ -5,34 +5,41 @@
       <div class="small-muted">Administre sus cuentas y movimientos</div>
     </div>
     <div class="page-actions">
-      {% if active == 'index' %}
-        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Finanzas</a>
-      {% else %}
-        <a href="/" class="btn btn-outline-primary btn-sm">Ver Finanzas</a>
-      {% endif %}
+      {% if session.get('user_id') %}
+        {% if active == 'index' %}
+          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Finanzas</a>
+        {% else %}
+          <a href="/" class="btn btn-outline-primary btn-sm">Ver Finanzas</a>
+        {% endif %}
 
-      {% if active == 'reports' %}
-        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Reportes</a>
-      {% else %}
-        <a href="/ui/reports" class="btn btn-outline-primary btn-sm">Ver Reportes</a>
-      {% endif %}
+        {% if active == 'reports' %}
+          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Reportes</a>
+        {% else %}
+          <a href="/ui/reports" class="btn btn-outline-primary btn-sm">Ver Reportes</a>
+        {% endif %}
 
-      {% if active == 'categories' %}
-        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Categorías</a>
-      {% else %}
-        <a href="/categories/all" class="btn btn-outline-primary btn-sm">Ver Categorías</a>
-      {% endif %}
+        {% if active == 'categories' %}
+          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Categorías</a>
+        {% else %}
+          <a href="/ui/categories" class="btn btn-outline-primary btn-sm">Ver Categorías</a>
+        {% endif %}
 
-      {% if active == 'accounts' %}
-        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Cuentas</a>
+        {% if active == 'accounts' %}
+          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Cuentas</a>
+        {% else %}
+          <a href="/ui/accounts" class="btn btn-outline-primary btn-sm">Cuentas</a>
+        {% endif %}
+
+        {% if active == 'cash_count' %}
+          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Conteo Efectivo</a>
+        {% else %}
+          <a href="/ui/cash-count" class="btn btn-outline-primary btn-sm">Conteo Efectivo</a>
+        {% endif %}
+
+        <a href="/logout" class="btn btn-outline-danger btn-sm">Cerrar sesión ({{ session.get('username') }})</a>
       {% else %}
-        <a href="/ui/accounts" class="btn btn-outline-primary btn-sm">Cuentas</a>
-      {% endif %}
-      
-      {% if active == 'cash_count' %}
-        <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Conteo Efectivo</a>
-      {% else %}
-        <a href="/ui/cash-count" class="btn btn-outline-primary btn-sm">Conteo Efectivo</a>
+        <a href="/ui/login" class="btn btn-outline-success btn-sm">Iniciar sesión</a>
+        <a href="/ui/register" class="btn btn-outline-primary btn-sm">Registrar Usuario</a>
       {% endif %}
     </div>
   </div>
