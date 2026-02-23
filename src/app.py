@@ -12,6 +12,7 @@ if __package__ is None:
     sys.path.insert(0, str(project_root))
 
 from src.infrastructure.database.sqlite_adapter import SQLiteMovementRepository
+from src.infrastructure.database.postgres_adapter import PostgresMovementRepository
 from datetime import datetime
 from src.core.services.movement_service import MovementService
 from src.core.domain.exceptions import InvalidAmountError, InvalidDateFormatError, InvalidTypeError
@@ -65,6 +66,10 @@ def _resolve_db_path(db_name: str) -> Path:
 
 
 def get_repo():
+    # Prefer DATABASE_URL env var (for Render/Postgres). Fall back to data/db_config.json -> sqlite
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and db_url.startswith('postgres'):
+        return PostgresMovementRepository(db_url)
     cfg = read_db_config()
     db_name = cfg.get('database') or 'finance_app.db'
     db_path = _resolve_db_path(db_name)
