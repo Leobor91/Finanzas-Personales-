@@ -12,6 +12,8 @@
   --gap: 16px;
 }
 html,body{height:100%;}
+/* Prevent accidental horizontal overflow that creates a white gutter on small screens */
+html, body { max-width: 100%; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -30,7 +32,7 @@ body {
 button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; box-shadow: 0 0 0 0.12rem rgba(31,111,235,0.18); }
 
 /* Index page tweaks */
-.card.centered { max-width: 760px; margin: 14px auto 40px auto; box-shadow: 0 6px 18px rgba(23, 39, 84, 0.08); }
+.card.centered { max-width: 100%; margin: 14px auto 40px auto; box-shadow: 0 6px 18px rgba(23, 39, 84, 0.08); }
 .logo { font-weight: 700; color: var(--accent); }
 
 /* Balance KPI grid */
@@ -127,6 +129,61 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
 
 /* Movement row colors: use light backgrounds + dark text for good contrast */
 .table-success td { background-color: #dff7e6 !important; color: #0b5130 !important; }
+
+/* Further mobile refinements: compact header row, reduce spacing, ensure dropdown fits nicely */
+@media (max-width: 480px) {
+  .site-header .container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+  .site-header .logo { font-size: 1rem; margin: 0; }
+  .site-header .small-muted { font-size: 0.78rem; }
+  .site-header .page-actions { align-self: auto; margin-top: 0; }
+
+  /* Make dropdown sit closer to the button and fit within viewport */
+  .dropdown-menu {
+    position: absolute;
+    top: 48px; /* closer to compact header */
+    right: 8px !important;
+    left: auto !important;
+    width: auto;
+    max-width: calc(100vw - 16px);
+    min-width: 140px;
+    box-sizing: border-box;
+    border-radius: 10px;
+  }
+
+  /* Make dropdown items easier to tap */
+  .dropdown-item { padding: 14px 16px; }
+
+  /* Reduce content offset so content isn't pushed too far down */
+  .content-offset { padding-top: 80px; }
+  /* ensure the main container doesn't add extra right padding that creates a visual gutter */
+  .container { padding-right: 8px; padding-left: 8px; box-sizing: border-box; }
+}
+
+/* Force smaller hamburger button on very small screens to avoid tall header */
+@media (max-width: 480px) {
+  .btn-group .btn.dropdown-toggle.btn-hamburger-initial {
+    width: 110px  !important;
+    height: 60px !important;
+    padding: 0 !important;
+    border-radius: 15% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* hide subtitle to save vertical space */
+  .site-header .small-muted { display: none; }
+  /* tighten top offset slightly */
+  .site-header .container { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+  .content-offset { padding-top: 72px !important; }
+}
 .table-danger td { background-color: #fde6e6 !important; color: #6b1414 !important; }
 .mov-amount-positive { color: #0b5130; font-weight:700; }
 .mov-amount-negative { color: #6b1414; font-weight:700; }
@@ -198,6 +255,145 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
 .container h3 { margin-bottom: 8px; }
 .table-responsive { overflow-x: auto; }
 
+/* Prevent tables and pagination from escaping the page container on small screens */
+.table-responsive {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+.table-responsive table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed; /* helps columns respect container width */
+}
+.table-responsive th, .table-responsive td {
+  white-space: normal; /* allow wrapping of long text */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Ensure pagination wraps instead of overflowing */
+.pagination { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Tighten container paddings on very small screens to avoid extra gutters */
+@media (max-width: 480px) {
+  .container { padding-left: 10px; padding-right: 10px; }
+  .card { overflow: hidden; }
+}
+
+/* Convert wide history tables into stacked cards on very small screens to avoid overflow */
+@media (max-width: 520px) {
+  .table-responsive thead { display: none; }
+  .table-responsive tbody tr { display: block; margin-bottom: 10px; border-radius: 8px; background: rgba(255,255,255,0.98); box-shadow: var(--card-shadow); padding: 8px; }
+  .table-responsive tbody td { display: flex; justify-content: space-between; padding: 8px 10px; border: none; align-items: center; }
+  .table-responsive tbody td::before { content: attr(data-label); display: inline-block; font-weight: 600; color: var(--muted); margin-right: 8px; max-width: 40%; }
+  .table-responsive tbody td.actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .table-responsive tbody td.actions .btn { padding: 6px 8px; font-size: 0.85rem; min-width: 36px; }
+  .table-responsive tbody td:last-child { border-bottom: none; }
+  /* Ensure long descriptions wrap and do not force width */
+  .table-responsive tbody td { white-space: normal; word-break: break-word; }
+}
+
+/* Tidy the 'Actualizar' button and controls in the history toolbar on small screens */
+@media (max-width: 520px) {
+  #history-controls .d-flex { align-items: center; gap: 6px; flex-wrap: wrap; }
+  #history-type { flex: 0 0 110px; min-width: 0; }
+  #history-refresh {
+    padding: .25rem .5rem !important;
+    font-size: .78rem !important;
+    line-height: 1 !important;
+    margin-left: 0 !important;
+    order: 98 !important; /* place after the other small controls so it can wrap */
+  }
+  /* Make the group-by checkbox compact */
+  .form-check { margin-left: 6px; margin-right: 6px; }
+  .form-check .form-check-label { font-size: 0.85rem; }
+}
+
+/* Fix history toolbar and filter row overflow on small screens */
+@media (max-width: 520px) {
+  /* generic toolbar wrappers used across pages */
+  .page-actions, .filters-row, .export-controls, .history-toolbar, .history-controls {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  /* make selects and inputs shrink but remain usable */
+  .filters-row .form-control, .filters-row .form-select, .export-controls .form-control, .export-controls .form-select {
+    flex: 1 1 140px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* ensure action buttons don't push layout; allow wrapping */
+  .page-actions .btn, .history-controls .btn, .export-controls .btn { flex: 0 0 auto !important; white-space: nowrap; }
+
+  /* reduce right margin that can force overflow */
+  .container, .card { padding-right: 10px; padding-left: 10px; box-sizing: border-box; }
+
+  /* if any control still overflows, allow it to break to next line */
+  .page-actions > *, .filters-row > * { min-width: 0; }
+}
+
+/* Ensure the right-side summary (records count / pagination metadata) wraps under the toolbar on small screens.
+   Use broad selectors to catch common patterns (text-end, float-end, .summary, .list-meta). */
+@media (max-width: 720px) {
+  .page-actions, .history-toolbar, .history-controls, .filters-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  /* Generic right-aligned summary blocks used by templates */
+  .page-actions > .text-end,
+  .page-actions .text-end,
+  .page-actions .float-end,
+  .page-actions .ms-auto,
+  .history-meta,
+  .list-meta,
+  .table-summary,
+  .summary,
+  .records-count {
+    flex: 1 1 100% !important;
+    order: 99 !important;
+    text-align: right !important;
+    margin-top: 6px !important;
+  }
+
+  /* Keep the left-side toolbar items compact */
+  .page-actions > *, .filters-row > * { flex: 0 0 auto; min-width: 0; }
+
+  /* Make selects shrink rather than forcing overflow */
+  .page-actions .form-select, .filters-row .form-select, .page-actions .form-control { flex: 1 1 120px !important; min-width: 0 !important; }
+}
+
+/* Specific fix for the history controls toolbar to avoid the right summary escaping container */
+@media (max-width: 720px) {
+  #history-controls { display: flex !important; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #history-controls > .d-flex { flex: 1 1 auto; min-width: 0; }
+  #history-controls > div:last-child { flex: 1 1 100%; order: 99; text-align: center; min-width: 0; margin-top: 6px; }
+  /* center meta and allow ellipsis if necessary */
+  #history-meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin: 0 auto; }
+  /* ensure card doesn't allow internal overflow to push page */
+  .card { overflow: hidden; }
+}
+
+/* Stronger centering for very narrow viewports to avoid left-shifted meta */
+@media (max-width: 420px) {
+  #history-controls { justify-content: flex-start; gap: 6px; }
+  /* force the left control group to wrap full width so the meta can sit centered below */
+  #history-controls > .d-flex { flex: 1 1 100% !important; min-width: 0; }
+  /* narrow the select so it doesn't push the summary off-center */
+  #history-type { flex: 0 0 120px !important; max-width: 48% !important; min-width: 0 !important; }
+  /* ensure the meta row occupies full width and is centered */
+  #history-controls > div:last-child { flex: 1 1 100% !important; order: 99 !important; width: 100% !important; text-align: center !important; margin-top: 6px !important; }
+  #history-meta { display: block !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; margin: 0 auto !important; }
+  /* make sure the refresh button is compact and doesn't force extra width */
+  #history-refresh { padding: .25rem .45rem !important; font-size: .78rem !important; line-height: 1 !important; margin-left: 0 !important; }
+}
 /* Enhanced hamburger menu styles */
 .btn-group .btn.dropdown-toggle {
   display: inline-flex;
