@@ -12,12 +12,21 @@ Inicio rápido
 ```bash
 python -m pip install -r requirements.txt
 ```
-2. Ejecutar la UI + API Flask:
+
+2. Ejecutar base de datos:
+```bash
+DEV
+    $env:DATABASE_URL = "postgresql://neondb_owner:npg_dbOe3fAMh4Vz@ep-little-cell-aiu1k9lz-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+PROD
+    $env:DATABASE_URL = "postgresql://neondb_owner:npg_dbOe3fAMh4Vz@ep-little-cell-aiu1k9lz-pooler.c-4.us-east-1.aws.neon.tech/neondb_finanzasleo?sslmode=require&channel_binding=require"
+```
+3. Ejecutar la UI + API Flask:
 ```bash
 python -m src.app
 # Abrir http://127.0.0.1:5000/ui/reports
 ```
-3. Usar el CLI (ejemplos):
+4. Usar el CLI (ejemplos):
 ```bash
 python -m src.cli --date 2024-01-15 --type Ingreso --amount 100 --category Sueldo --description "Pago"
 python -m src.cli list --from 2024-01-01 --to 2024-01-31
