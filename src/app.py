@@ -726,20 +726,22 @@ def movements_history():
     repo = get_repo()
     try:
         cur = repo.conn.cursor()
+        # Use appropriate parameter placeholder depending on DB backend
+        ph = '%s' if os.environ.get('DATABASE_URL') else '?'
         where = "WHERE 1=1"
         params = []
         if date_from:
-            where += " AND date >= ?"
+            where += f" AND date >= {ph}"
             params.append(date_from)
         if date_to:
-            where += " AND date <= ?"
+            where += f" AND date <= {ph}"
             params.append(date_to)
         if category:
-            where += " AND category LIKE ?"
+            where += f" AND category LIKE {ph}"
             params.append(f"%{category}%")
         if mv_type:
             # accept exact type values (Ingreso/Gasto)
-            where += " AND type = ?"
+            where += f" AND type = {ph}"
             params.append(mv_type)
 
         # total count
@@ -749,7 +751,7 @@ def movements_history():
 
         # fetch paged rows
         offset = (page - 1) * per_page
-        data_sql = f"SELECT id, date, type, amount, currency, fx_rate, category, description, account FROM movements {where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
+        data_sql = f"SELECT id, date, type, amount, currency, fx_rate, category, description, account FROM movements {where} ORDER BY date DESC, id DESC LIMIT {ph} OFFSET {ph}"
         exec_params = list(params) + [per_page, offset]
         cur.execute(data_sql, tuple(exec_params))
         rows = cur.fetchall()
