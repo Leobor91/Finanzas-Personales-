@@ -197,3 +197,86 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
 /* Small visual polish */
 .container h3 { margin-bottom: 8px; }
 .table-responsive { overflow-x: auto; }
+
+/* Enhanced hamburger menu styles */
+.btn-group .btn.dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 60px;
+  border-radius: 15px;
+  font-weight: 700;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(31,111,235,0.06), rgba(31,111,235,0.03));
+  border: 1px solid rgba(31,111,235,0.12);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.btn-group .btn.dropdown-toggle:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 18px rgba(31,111,235,0.12);
+  background: linear-gradient(180deg, rgba(31,111,235,0.12), rgba(31,111,235,0.04));
+}
+
+/* Make dropdown menu more card-like and interactive */
+.dropdown-menu {
+  min-width: 220px;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.12);
+  border: 1px solid rgba(7,41,58,0.06);
+}
+.dropdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.dropdown-item .muted-desc { font-size: 0.78rem; color: var(--muted); }
+.dropdown-item:hover {
+  background: linear-gradient(90deg, rgba(31,111,235,0.06), rgba(31,111,235,0.02));
+  transform: translateX(6px);
+}
+.dropdown-item.active { background: linear-gradient(90deg, rgba(31,111,235,0.12), rgba(31,111,235,0.04)); }
+
+/* Show description using attribute on hover via pseudo element */
+.dropdown-item::after {
+  content: attr(data-description);
+  display: block;
+  font-size: 0.78rem;
+  color: rgba(10,25,40,0.6);
+  margin-top: 4px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.dropdown-item:hover::after { opacity: 1; transform: translateY(0); }
+
+/* Emphasize logout with icon and color */
+.dropdown-item.text-danger { font-weight: 700; }
+.dropdown-header { padding: 8px 12px; font-weight: 700; color: var(--accent); }
+
+/* Make hamburger show user initial as badge on the button (if username present) */
+.btn-hamburger-initial {
+  width: 44px; height: 44px; border-radius: 50%; padding: 0; display: inline-flex; align-items:center; justify-content:center; font-weight:700;
+}
+
+@media (min-width: 992px) {
+  /* Slightly larger menu on desktop */
+  .btn-group .btn.dropdown-toggle { width: 110px;
+  height: 60px;
+  border-radius: 15px; }
+  .dropdown-menu { min-width: 260px; }
+}
+
+/* Disabled dropdown items: visually dim and prevent interaction */
+.dropdown-item.disabled,
+.dropdown-item[aria-disabled="true"] {
+  /* Keep pointer-events so hover can reveal the description (::after)
+     Clicks are still prevented by JS and tabindex="-1" on the element. */
+  opacity: 0.65;
+  transform: none !important;
+  cursor: default;
+}
