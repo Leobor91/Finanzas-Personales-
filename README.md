@@ -18,8 +18,6 @@ python -m pip install -r requirements.txt
 DEV
     $env:DATABASE_URL = "postgresql://neondb_owner:npg_dbOe3fAMh4Vz@ep-little-cell-aiu1k9lz-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-PROD
-    $env:DATABASE_URL = "postgresql://neondb_owner:npg_dbOe3fAMh4Vz@ep-little-cell-aiu1k9lz-pooler.c-4.us-east-1.aws.neon.tech/neondb_finanzasleo?sslmode=require&channel_binding=require"
 ```
 3. Ejecutar la UI + API Flask:
 ```bash
