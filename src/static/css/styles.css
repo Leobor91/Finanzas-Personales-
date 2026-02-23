@@ -284,13 +284,25 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
 @media (max-width: 520px) {
   .table-responsive thead { display: none; }
   .table-responsive tbody tr { display: block; margin-bottom: 10px; border-radius: 8px; background: rgba(255,255,255,0.98); box-shadow: var(--card-shadow); padding: 8px; }
-  .table-responsive tbody td { display: flex; justify-content: space-between; padding: 8px 10px; border: none; align-items: center; }
-  .table-responsive tbody td::before { content: attr(data-label); display: inline-block; font-weight: 600; color: var(--muted); margin-right: 8px; max-width: 40%; }
+  .table-responsive tbody td { display: flex; flex-direction: column; justify-content: flex-start; padding: 8px 10px; border: none; align-items: stretch; }
+  .table-responsive tbody td::before { content: attr(data-label); display: block; font-weight: 600; color: var(--muted); margin: 0 0 6px 0; max-width: 100%; }
   .table-responsive tbody td.actions { display: flex; gap: 6px; justify-content: flex-end; }
   .table-responsive tbody td.actions .btn { padding: 6px 8px; font-size: 0.85rem; min-width: 36px; }
   .table-responsive tbody td:last-child { border-bottom: none; }
   /* Ensure long descriptions wrap and do not force width */
   .table-responsive tbody td { white-space: normal; word-break: break-word; }
+}
+
+/* Ensure denom-table occupies full width and inputs expand on small screens */
+@media (max-width: 576px) {
+  .denom-table { display: block !important; width: 100% !important; table-layout: auto !important; }
+  .denom-table thead, .denom-table colgroup { display: none !important; }
+  .denom-table tbody, .denom-table tr { display: block !important; width: 100% !important; }
+  .denom-table td { display: block !important; width: 100% !important; padding: 10px 12px !important; box-sizing: border-box; }
+  .denom-table td::before { display: block; margin-bottom: 6px; }
+  .denom-table input.form-control { width: 100% !important; max-width: 100% !important; box-sizing: border-box; }
+  .denom-table .actions { display: block; text-align: right; }
+  .denom-table .actions .btn { width: auto; display: inline-block; }
 }
 
 /* Tidy the 'Actualizar' button and controls in the history toolbar on small screens */
@@ -475,4 +487,26 @@ button:focus, .form-control:focus, .form-select:focus, a:focus { outline: none; 
   opacity: 0.65;
   transform: none !important;
   cursor: default;
+}
+
+/* Improved touch targets for cash count table */
+#denomTable input.form-control {
+  height: 42px; /* larger inputs for easier tapping */
+}
+
+#denomTable .remove {
+  min-width: 84px; /* avoid wrapping the button text on small screens */
+  white-space: nowrap;
+}
+
+/* Slightly larger inputs on very small screens */
+@media (max-width: 576px) {
+  #denomTable input.form-control {
+    height: 48px;
+    font-size: 1rem;
+  }
+  .denom-table .actions .btn {
+    min-width: 84px;
+    white-space: nowrap;
+  }
 }

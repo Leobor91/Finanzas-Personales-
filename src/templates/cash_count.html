@@ -23,7 +23,7 @@
       </div>
 
       <div class="table-responsive">
-        <table id="denomTable" class="table table-sm table-bordered">
+        <table id="denomTable" class="table table-sm table-bordered denom-table">
           <thead>
             <tr>
               <th style="width:40%">Denominación</th>
@@ -79,10 +79,10 @@
       function addRow(denom='', qty=''){
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><input class="form-control form-control-sm denom" type="number" step="any" min="0" value="${denom}"></td>
-          <td><input class="form-control form-control-sm qty" type="number" step="1" min="0" value="${qty}"></td>
-          <td><input class="form-control form-control-sm total" readonly></td>
-          <td><button class="btn btn-sm btn-danger remove">Eliminar</button></td>
+          <td data-label="Denominación"><input class="form-control form-control-sm denom" type="number" inputmode="decimal" step="any" min="0" value="${denom}" placeholder="0"></td>
+          <td data-label="Cantidad"><input class="form-control form-control-sm qty" type="number" inputmode="numeric" step="1" min="0" value="${qty}" placeholder="0"></td>
+          <td data-label="Total"><input class="form-control form-control-sm total" readonly aria-readonly="true" value=""></td>
+          <td data-label="Acciones" class="actions"><button type="button" class="btn btn-sm btn-danger remove" aria-label="Eliminar fila">Eliminar</button></td>
         `;
         table.appendChild(tr);
 
@@ -123,7 +123,7 @@
           if(val > 0){
             try{
               await fetch('/denominations', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ value: val }) });
-              // optionally show a subtle saved style
+              // subtle saved style
               el.classList.add('border-success');
               setTimeout(()=> el.classList.remove('border-success'), 900);
             }catch(e){ /* ignore save errors */ }
