@@ -6,37 +6,49 @@
     </div>
     <div class="page-actions">
       {% if session.get('user_id') %}
-        {% if active == 'index' %}
-          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Finanzas</a>
-        {% else %}
-          <a href="/" class="btn btn-outline-primary btn-sm">Ver Finanzas</a>
-        {% endif %}
-
-        {% if active == 'reports' %}
-          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Reportes</a>
-        {% else %}
-          <a href="/ui/reports" class="btn btn-outline-primary btn-sm">Ver Reportes</a>
-        {% endif %}
-
-        {% if active == 'categories' %}
-          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Ver Categorías</a>
-        {% else %}
-          <a href="/ui/categories" class="btn btn-outline-primary btn-sm">Ver Categorías</a>
-        {% endif %}
-
-        {% if active == 'accounts' %}
-          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Cuentas</a>
-        {% else %}
-          <a href="/ui/accounts" class="btn btn-outline-primary btn-sm">Cuentas</a>
-        {% endif %}
-
-        {% if active == 'cash_count' %}
-          <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1" aria-disabled="true">Conteo Efectivo</a>
-        {% else %}
-          <a href="/ui/cash-count" class="btn btn-outline-primary btn-sm">Conteo Efectivo</a>
-        {% endif %}
-
-        <a href="/logout" class="btn btn-outline-danger btn-sm">Cerrar sesión ({{ session.get('username') }})</a>
+        <div class="btn-group">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle btn-hamburger-initial" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">{{ session.get('username')|upper if session.get('username') else '☰' }}</button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+            <li><h6 class="dropdown-header">{{ session.get('username') }}</h6></li>
+            <li>
+              {% if active == 'index' %}
+                <a class="dropdown-item active disabled" href="#" aria-disabled="true" tabindex="-1" data-description="Resumen de tus finanzas y balances">Ver Finanzas</a>
+              {% else %}
+                <a class="dropdown-item" href="/" data-description="Resumen de tus finanzas y balances">Ver Finanzas</a>
+              {% endif %}
+            </li>
+            <li>
+              {% if active == 'reports' %}
+                <a class="dropdown-item active disabled" href="#" aria-disabled="true" tabindex="-1" data-description="Informes y gráficos por mes/año">Ver Reportes</a>
+              {% else %}
+                <a class="dropdown-item" href="/ui/reports" data-description="Informes y gráficos por mes/año">Ver Reportes</a>
+              {% endif %}
+            </li>
+            <li>
+              {% if active == 'categories' %}
+                <a class="dropdown-item active disabled" href="#" aria-disabled="true" tabindex="-1" data-description="Gestiona tus categorías de ingreso y gasto">Ver Categorías</a>
+              {% else %}
+                <a class="dropdown-item" href="/ui/categories" data-description="Gestiona tus categorías de ingreso y gasto">Ver Categorías</a>
+              {% endif %}
+            </li>
+            <li>
+              {% if active == 'accounts' %}
+                <a class="dropdown-item active disabled" href="#" aria-disabled="true" tabindex="-1" data-description="Cuentas y saldos asociados">Cuentas</a>
+              {% else %}
+                <a class="dropdown-item" href="/ui/accounts" data-description="Cuentas y saldos asociados">Cuentas</a>
+              {% endif %}
+            </li>
+            <li>
+              {% if active == 'cash_count' %}
+                <a class="dropdown-item active disabled" href="#" aria-disabled="true" tabindex="-1" data-description="Herramienta de conteo de efectivo">Conteo Efectivo</a>
+              {% else %}
+                <a class="dropdown-item" href="/ui/cash-count" data-description="Herramienta de conteo de efectivo">Conteo Efectivo</a>
+              {% endif %}
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="/logout">Cerrar sesión</a></li>
+          </ul>
+        </div>
       {% else %}
         <a href="/ui/login" class="btn btn-outline-success btn-sm">Iniciar sesión</a>
         <a href="/ui/register" class="btn btn-outline-primary btn-sm">Registrar Usuario</a>
@@ -47,3 +59,18 @@
 
 <!-- content-offset adds top padding so content isn't hidden below sticky header -->
 <div class="content-offset">
+
+<script>
+// Prevent clicks on menu items marked as aria-disabled and add tooltip text
+document.addEventListener('click', function(e){
+  var el = e.target.closest && e.target.closest('a[aria-disabled="true"]');
+  if(el){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+document.querySelectorAll('a[aria-disabled="true"]').forEach(function(a){
+  if(!a.getAttribute('title')) a.setAttribute('title', 'Ya estás en esta página');
+});
+</script>
