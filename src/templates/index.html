@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Finanzas Personales — Registrar</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 
@@ -84,11 +85,6 @@
               <option value="Ingreso">Ingreso</option>
               <option value="Gasto">Gasto</option>
             </select>
-            <div class="form-check ms-2">
-              <input class="form-check-input" type="checkbox" id="group-by-type">
-              <label class="form-check-label small-muted" for="group-by-type">Agrupar por tipo</label>
-            </div>
-            <button id="history-refresh" class="btn btn-sm btn-outline-secondary ms-2">Actualizar</button>
           </div>
           <div><small id="history-meta" class="text-muted"></small></div>
         </div>
@@ -101,7 +97,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Category modal HTML
+    // Category modal HTML (with icon picker)
     const catModalHtml = `
       <div class="modal fade" id="catModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -109,6 +105,19 @@
             <div class="modal-header"><h5 class="modal-title">Nueva categoría</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
               <div class="mb-3"><label class="form-label">Nombre</label><input id="new-cat-name" class="form-control"></div>
+              <div class="mb-2">
+                <label class="form-label">Icono</label>
+                <input type="hidden" id="new-cat-icon" value="">
+                <div class="d-flex align-items-center gap-2">
+                  <button id="new-cat-icon-btn" class="btn btn-outline-secondary" type="button">🎯</button>
+                  <small class="text-muted">Seleccione un icono (opcional)</small>
+                </div>
+                <div id="new-cat-icon-picker" class="mt-2" style="display:none"></div>
+                <div class="mt-2">
+                  <label class="form-label small">O escribe/pega un emoji</label>
+                  <input id="new-cat-icon-custom" class="form-control" placeholder="Pega o escribe emoji aquí" style="max-width:220px; display:inline-block">
+                </div>
+              </div>
             </div>
             <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="save-cat" class="btn btn-primary">Guardar</button></div>
           </div>
@@ -116,6 +125,45 @@
       </div>`;
     document.body.insertAdjacentHTML('beforeend', catModalHtml);
     const catModal = new bootstrap.Modal(document.getElementById('catModal'));
+
+    // cat modal icon picker data and wiring (FontAwesome classes + emojis)
+    const ingresoIcons_small = ['fa-solid fa-sack-dollar','fa-solid fa-money-bill-wave','fa-solid fa-credit-card','fa-solid fa-piggy-bank','fa-solid fa-building-columns','fa-solid fa-chart-line','fa-solid fa-tags','fa-solid fa-wallet','fa-solid fa-wallet','fa-solid fa-coins'];
+    const gastoIcons_small = ['fa-solid fa-utensils','fa-solid fa-cart-shopping','fa-solid fa-car','fa-solid fa-house','fa-solid fa-gift','fa-solid fa-pills','fa-solid fa-ticket','fa-solid fa-wrench','fa-solid fa-plane','fa-solid fa-gas-pump'];
+    const ingresoEmojis_small = ['💰','💵','💳','🏦','📈','🪙','🏷️','🎁'];
+    const gastoEmojis_small = ['🍽️','🛒','🚗','🏠','🎁','💊','🧾','🛠️','✈️','⛽'];
+    function renderCatIconPicker(container, type) {
+      container.innerHTML = '';
+      const extraEmojis = ['😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😇','🙂','🙃','😍','😘','😗','😙','😚','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','🤤','😛','😜','🤪','😝','🤑','🤠','😎','🤓','🧐','😕','😟','🙁','☹️','😮‍💨','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😵‍💫','🤢','🤮','🤧','😷','🤒','🤕','🤑','💩','🤡','👻','💀','☠️','👽','👾','🤖','🎃','😺','😸','😹','😻','😼','😽','🙀','😿','😾'];
+      const list = (type === 'Ingreso' ? ingresoIcons_small.concat(ingresoEmojis_small).concat(extraEmojis) : gastoIcons_small.concat(gastoEmojis_small).concat(extraEmojis));
+      const wrap = document.createElement('div'); wrap.className = 'd-flex flex-wrap gap-2';
+      for (const ico of list) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-outline-secondary'; b.style.minWidth = '44px';
+        if (typeof ico === 'string' && ico.indexOf('fa-') !== -1) b.innerHTML = `<i class="${ico}"></i>`;
+        else b.innerText = ico;
+        b.onclick = () => { document.getElementById('new-cat-icon').value = ico; document.getElementById('new-cat-icon-btn').innerHTML = (ico.indexOf && ico.indexOf('fa-') !== -1) ? `<i class="${ico}"></i>` : ico; // clear custom input
+          const custom = document.getElementById('new-cat-icon-custom'); if (custom) custom.value = (ico.indexOf && ico.indexOf('fa-') !== -1) ? '' : ico;
+          wrap.querySelectorAll('button').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
+        if (document.getElementById('new-cat-icon').value === ico) b.classList.add('active');
+        wrap.appendChild(b);
+      }
+      container.appendChild(wrap);
+    }
+    document.getElementById('new-cat-icon-btn').addEventListener('click', () => {
+      const picker = document.getElementById('new-cat-icon-picker');
+      const tSel = document.querySelector('select[name="type"]');
+      const t = (tSel && tSel.value) ? tSel.value : 'Ingreso';
+      if (picker.style.display === 'none' || picker.style.display === '') { renderCatIconPicker(picker, t); picker.style.display = 'block'; } else { picker.style.display = 'none'; }
+    });
+
+    // allow typing/pasting emoji into the modal input
+    const newCatCustom = document.getElementById('new-cat-icon-custom');
+    if (newCatCustom) {
+      newCatCustom.addEventListener('input', (e) => {
+        const v = e.target.value.trim();
+        document.getElementById('new-cat-icon').value = v || '';
+        document.getElementById('new-cat-icon-btn').innerText = v || '🎯';
+      });
+    }
 
     // Account modal HTML (create account from the register page)
     const accModalHtml = `
@@ -443,11 +491,16 @@
       document.getElementById('save-cat').addEventListener('click', async () => {
         const name = document.getElementById('new-cat-name').value.trim();
         const type = typeSel.value;
+        const icon = document.getElementById('new-cat-icon') ? document.getElementById('new-cat-icon').value || null : null;
         if (!name) return alert('Nombre requerido');
         try {
-          const res = await fetch('/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name }) });
+          const res = await fetch('/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name, icon }) });
           if (res.status === 201) {
             catModal.hide();
+            // hide picker and reset
+            const picker = document.getElementById('new-cat-icon-picker'); if (picker) picker.style.display = 'none';
+            document.getElementById('new-cat-icon').value = '';
+            document.getElementById('new-cat-icon-btn').innerHTML = '🎯';
             await loadCategoriesForType(type);
             // select the new category
             const sel = document.getElementById('category-select'); sel.value = name;

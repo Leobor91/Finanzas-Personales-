@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Categorías</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 
@@ -29,9 +30,15 @@
                         <option value="Ingreso">Ingreso</option>
                         <option value="Gasto">Gasto</option>
                     </select>
-                    <input id="newIcon" class="form-control" placeholder="Icono (emoji o URL)" style="max-width:160px;">
+                                <input type="hidden" id="newIcon" value="">
+                    <button id="newIconBtn" class="btn btn-outline-secondary" type="button" title="Seleccionar icono" style="min-width:52px">🎯</button>
                     <input id="newName" class="form-control" placeholder="Nombre de categoría">
                     <button id="addBtn" class="btn btn-primary">Agregar</button>
+                </div>
+                <div id="newIconPicker" class="mt-2" style="display:none"></div>
+                <div class="mt-2">
+                    <label class="form-label small">O escribe/pega un emoji</label>
+                    <input id="newIconCustom" class="form-control" placeholder="Pega o escribe emoji aquí" style="max-width:220px; display:inline-block">
                 </div>
             </div>
         </div>
@@ -41,7 +48,7 @@
             <div class="category-grid">
                 {% for c in initial_categories %}
                 <div class="category-card {{ c.type|lower }}">
-                    <div class="icon">{% if c.icon %}{% if c.icon.startswith('http') %}<img src="{{ c.icon }}" alt="icon" style="width:36px;height:36px;border-radius:50%">{% else %}{{ c.icon }}{% endif %}
+                    <div class="icon">{% if c.icon %}{% if c.icon.startswith('http') %}<img src="{{ c.icon }}" alt="icon" style="width:36px;height:36px;border-radius:50%">{% elif 'fa-' in c.icon %}<i class="{{ c.icon }}" style="font-size:20px"></i>{% else %}{{ c.icon }}{% endif %}
                         {% else %}
                             {% set ingreso_icons = ['💰','💵','💳','🪙','🏦','📈'] %}
                             {% set gasto_icons = ['🍽️','🛒','🚗','🏠','🎁','💊'] %}
@@ -66,6 +73,36 @@
 
     </div>
 
+    <!-- Edit category modal (name + icon) -->
+    <div class="modal fade" id="editCategoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Editar categoría</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label">Nombre</label>
+                        <input id="editName" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Tipo</label>
+                        <select id="editType" class="form-select" style="max-width:160px;"></select>
+                    </div>
+                    <input type="hidden" id="editIcon" value="">
+                    <div class="d-flex align-items-center gap-2">
+                        <button id="editIconBtn" class="btn btn-outline-secondary" type="button" title="Seleccionar icono" style="min-width:52px">🎯</button>
+                        <small class="text-muted">Seleccione un icono (opcional)</small>
+                    </div>
+                    <div id="editIconPicker" class="mt-2" style="display:none"></div>
+                    <div class="mt-2">
+                        <label class="form-label small">O escribe/pega un emoji</label>
+                        <input id="editIconCustom" class="form-control" placeholder="Pega o escribe emoji aquí" style="max-width:220px; display:inline-block">
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button id="saveEditCat" class="btn btn-primary">Guardar</button></div>
+            </div>
+        </div>
+    </div>
+
     </div> <!-- close content-offset -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -77,12 +114,16 @@
             try { console.log('categories fetched', data); } catch (e) { }
             return data;
         }
+        // icon sets (shared for rendering and pickers)
+        const ingresoIcons = ['fa-solid fa-sack-dollar','fa-solid fa-money-bill-wave','fa-solid fa-credit-card','fa-solid fa-piggy-bank','fa-solid fa-building-columns','fa-solid fa-chart-line','fa-solid fa-tags','fa-solid fa-wallet','fa-solid fa-hand-holding-dollar','fa-solid fa-coins','fa-solid fa-handshake-simple'];
+        const gastoIcons = ['fa-solid fa-utensils','fa-solid fa-cart-shopping','fa-solid fa-car','fa-solid fa-house','fa-solid fa-gift','fa-solid fa-pills','fa-solid fa-ticket','fa-solid fa-wrench','fa-solid fa-plane','fa-solid fa-heart','fa-solid fa-user-friends'];
+        const ingresoEmojis = ['💰','💵','💳','🏦','📈','🪙','🏷️','🎁'];
+        const gastoEmojis = ['🍽️','🛒','🚗','🏠','🎁','💊','🧾','🧰','✈️','🎫'];
+        const extraEmojis = ['😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😇','🙂','🙃','😍','😘','😗','😙','😚','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','🤤','😛','😜','🤪','😝','🤑','🤠','😎','🤓','🧐','😕','😟','🙁','☹️','😮‍💨','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','😵','😵‍💫','🤢','🤮','🤧','😷','🤒','🤕','💩','🤡','👻','💀','☠️','👽','👾','🤖','🎃','😺','😸','😹','😻','😼','😽','🙀','😿','😾'];
 
         function renderCards(categories) {
             const wrap = document.createElement('div');
             wrap.className = 'category-grid';
-            const ingresoIcons = ['💰','💵','💳','🪙','🏦','📈'];
-            const gastoIcons = ['🍽️','🛒','🚗','🏠','🎁','💊'];
 
             function pickIconFor(c) {
                 if (c.icon) return c.icon;
@@ -94,7 +135,10 @@
                 const card = document.createElement('div');
                 card.className = `category-card ${c.type.toLowerCase()}`;
                 const icon = pickIconFor(c);
-                const iconHtml = (icon && (icon.startsWith && icon.startsWith('http'))) ? `<img src="${icon}" alt="icon" style="width:36px;height:36px;border-radius:50%">` : icon;
+                let iconHtml = '';
+                if (icon && (icon.startsWith && icon.startsWith('http'))) iconHtml = `<img src="${icon}" alt="icon" style="width:36px;height:36px;border-radius:50%">`;
+                else if (icon && icon.indexOf('fa-') !== -1) iconHtml = `<i class="${icon}" style="font-size:20px"></i>`;
+                else iconHtml = icon || '';
                 card.innerHTML = `
                         <div class="icon">${iconHtml}</div>
                         <div class="meta">
@@ -134,9 +178,40 @@
             container.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.onclick = (e) => {
                     const id = btn.dataset.id;
-                    const name = prompt('Nuevo nombre de categoría:');
-                    if (!name) return;
-                    fetch(`/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).then(() => load());
+                    const cat = lastList.find(x => String(x.id) === String(id));
+                    if (!cat) return alert('Categoría no encontrada');
+                    // populate modal
+                    document.getElementById('editName').value = cat.name || '';
+                    document.getElementById('editType').innerHTML = '<option value="Ingreso">Ingreso</option><option value="Gasto">Gasto</option>';
+                    document.getElementById('editType').value = cat.type || 'Ingreso';
+                    document.getElementById('editIcon').value = cat.icon || '';
+                    // sync edit custom input (if present)
+                    const editCustomInit = document.getElementById('editIconCustom');
+                    if (editCustomInit) editCustomInit.value = (cat.icon && cat.icon.indexOf && cat.icon.indexOf('fa-') !== -1) ? '' : (cat.icon || '');
+                    // render picker with current selection
+                    renderIconPicker(document.getElementById('editIconPicker'), document.getElementById('editType').value, 'editIcon');
+                    // update preview button for edit modal
+                    const editPreviewBtn = document.getElementById('editIconBtn');
+                    if (editPreviewBtn) {
+                        const val = document.getElementById('editIcon').value || '';
+                        if (val && val.indexOf && val.indexOf('fa-') !== -1) editPreviewBtn.innerHTML = `<i class="${val}"></i>`;
+                        else editPreviewBtn.innerText = val || '🎯';
+                    }
+                    // show modal
+                    const m = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+                    m.show();
+                    // attach save handler (one-time)
+                    const saveBtn = document.getElementById('saveEditCat');
+                    const handler = async () => {
+                        const payload = { name: document.getElementById('editName').value.trim(), type: document.getElementById('editType').value, icon: document.getElementById('editIcon').value || null };
+                        if (!payload.name) return alert('Nombre requerido');
+                        await fetch(`/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        m.hide();
+                        load();
+                        saveBtn.removeEventListener('click', handler);
+                    };
+                    saveBtn.removeEventListener('click', handler);
+                    saveBtn.addEventListener('click', handler);
                 }
             });
         }
@@ -156,17 +231,118 @@
             renderLast();
         }
 
+        // icon picker renderer used by both new and edit flows
+        function renderIconPicker(container, type, targetInputId) {
+            container.innerHTML = '';
+            const list = (type === 'Ingreso' ? ingresoIcons.concat(ingresoEmojis).concat(extraEmojis) : gastoIcons.concat(gastoEmojis).concat(extraEmojis));
+            const wrap = document.createElement('div');
+            wrap.className = 'd-flex flex-wrap gap-2';
+            for (const ico of list) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'btn btn-outline-secondary';
+                b.style.minWidth = '44px';
+                // render FA classes as <i>, emojis/text as text
+                if (typeof ico === 'string' && ico.indexOf('fa-') !== -1) b.innerHTML = `<i class="${ico}"></i>`;
+                else b.innerText = ico;
+                b.onclick = () => {
+                    document.getElementById(targetInputId).value = ico;
+                    // mark selected
+                    wrap.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+                    b.classList.add('active');
+                    // update preview button appropriately
+                    if (targetInputId === 'newIcon') {
+                        const preview = document.getElementById('newIconBtn');
+                        if (ico.indexOf && ico.indexOf('fa-') !== -1) {
+                            preview.innerHTML = `<i class="${ico}"></i>`;
+                            const custom = document.getElementById('newIconCustom'); if (custom) custom.value = '';
+                        } else {
+                            preview.innerText = ico;
+                            const custom = document.getElementById('newIconCustom'); if (custom) custom.value = ico;
+                        }
+                    } else if (targetInputId === 'editIcon') {
+                        // sync edit custom input when selecting
+                        const editCustom = document.getElementById('editIconCustom');
+                        if (editCustom) {
+                            if (ico.indexOf && ico.indexOf('fa-') !== -1) editCustom.value = '';
+                            else editCustom.value = ico;
+                        }
+                        // update edit preview button as well
+                        const editPreview = document.getElementById('editIconBtn');
+                        if (editPreview) {
+                            if (ico.indexOf && ico.indexOf('fa-') !== -1) editPreview.innerHTML = `<i class="${ico}"></i>`;
+                            else editPreview.innerText = ico;
+                        }
+                    }
+                };
+                // pre-select if matches
+                if (document.getElementById(targetInputId).value === ico) b.classList.add('active');
+                wrap.appendChild(b);
+            }
+            container.appendChild(wrap);
+        }
+
+        // wire new icon picker toggle and behavior
+        document.getElementById('newIconBtn').addEventListener('click', () => {
+            const picker = document.getElementById('newIconPicker');
+            const type = document.getElementById('newType').value;
+            if (picker.style.display === 'none' || picker.style.display === '') {
+                renderIconPicker(picker, type, 'newIcon');
+                picker.style.display = 'block';
+            } else {
+                picker.style.display = 'none';
+            }
+        });
+
+        // wire edit icon picker toggle and behavior
+        const editIconBtn = document.getElementById('editIconBtn');
+        if (editIconBtn) {
+            editIconBtn.addEventListener('click', () => {
+                const picker = document.getElementById('editIconPicker');
+                const type = document.getElementById('editType').value || 'Ingreso';
+                if (picker.style.display === 'none' || picker.style.display === '') {
+                    renderIconPicker(picker, type, 'editIcon');
+                    picker.style.display = 'block';
+                } else {
+                    picker.style.display = 'none';
+                }
+            });
+        }
+
+        // when editType changes, rerender picker if visible
+        const editTypeEl = document.getElementById('editType');
+        if (editTypeEl) editTypeEl.addEventListener('change', () => { const p = document.getElementById('editIconPicker'); if (p && p.style.display !== 'none') renderIconPicker(p, editTypeEl.value, 'editIcon'); });
+
+        document.getElementById('newType').addEventListener('change', () => {
+            const picker = document.getElementById('newIconPicker');
+            if (picker && picker.style.display !== 'none') renderIconPicker(picker, document.getElementById('newType').value, 'newIcon');
+        });
+
         document.getElementById('filterType').onchange = () => renderLast();
         document.getElementById('addBtn').onclick = async () => {
             const type = document.getElementById('newType').value;
             const name = document.getElementById('newName').value.trim();
+            const icon = document.getElementById('newIcon').value || null;
             if (!name) return alert('Nombre requerido');
-            await fetch('/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name }) });
+            await fetch('/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name, icon }) });
             document.getElementById('newName').value = '';
+            document.getElementById('newIcon').value = '';
+            document.getElementById('newIconBtn').innerText = '🎯';
+            document.getElementById('newIconPicker').style.display = 'none';
             load();
         };
 
         load();
+
+        // sync edit custom input into hidden editIcon and update preview
+        const editCustom = document.getElementById('editIconCustom');
+        if (editCustom) {
+            editCustom.addEventListener('input', (e) => {
+                const v = e.target.value.trim();
+                document.getElementById('editIcon').value = v || '';
+                const editPreview = document.getElementById('editIconBtn'); if (editPreview) editPreview.innerText = v || '🎯';
+            });
+        }
     </script>
 </body>
 
