@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urlunparse
 from typing import Optional
 
 from src.core.ports.repository import MovementRepositoryInterface
@@ -57,10 +57,26 @@ CREATE_TABLES_SQL = (
 
 class PostgresMovementRepository(MovementRepositoryInterface):
     def __init__(self, database_url: Optional[str] = None):
-        self.database_url = database_url or os.environ.get('DATABASE_URL')
-        if not self.database_url:
+        raw = database_url or os.environ.get('DATABASE_URL')
+        if not raw:
             raise RuntimeError('DATABASE_URL not provided for Postgres adapter')
+
+        # normalize scheme (postgres:// -> postgresql://)
+        if raw.startswith('postgres://'):
+            raw = raw.replace('postgres://', 'postgresql://', 1)
+
+        # ensure sslmode is present by default for hosted providers
+        p = urlparse(raw)
+        qs = parse_qs(p.query or '')
+        if 'sslmode' not in qs:
+            new_query = p.query + ('&' if p.query else '') + 'sslmode=require'
+            p = p._replace(query=new_query)
+            raw = urlunparse(p)
+
+        self.database_url = raw
         self._conn = psycopg2.connect(self.database_url)
+        # alias for compatibility
+        self.conn = self._conn
         self._conn.autocommit = True
         self._init_db()
 
