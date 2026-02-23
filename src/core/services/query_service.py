@@ -13,12 +13,11 @@ class MovementQueryService:
         except Exception:
             raise InvalidDateFormatError("Formato de fecha incorrecto. Use AAAA-MM-DD")
 
-    def find(self, date_from=None, date_to=None, category=None):
+    def find(self, date_from=None, date_to=None, category=None, user_id: int | None = None):
         if date_from:
             date_from = self._validate_date(date_from)
         if date_to:
             date_to = self._validate_date(date_to)
         if date_from and date_to and date_to < date_from:
             raise ValueError("La fecha 'to' no puede ser anterior a 'from'.")
-
-        return self.repository.find_by_criteria(date_from=date_from, date_to=date_to, category=category)
+        return self.repository.find_by_criteria(date_from=date_from, date_to=date_to, category=category, user_id=user_id)
