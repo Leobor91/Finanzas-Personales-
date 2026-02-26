@@ -374,7 +374,6 @@
           if (res.status === 200) {
             editModal.hide();
             loadHistory(1,5);
-            loadAccountBalances();
           } else {
             alert('Error: ' + (j.error || JSON.stringify(j)));
           }
