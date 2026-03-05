@@ -325,7 +325,7 @@
           try {
             const res = await fetch('/movements/' + id, { method: 'DELETE' });
             if (res.status === 200) {
-              loadHistory(1,5);
+              loadHistory(1,10);
             } else {
               const j = await res.json(); alert('Error: ' + (j.error || JSON.stringify(j)));
             }
@@ -373,7 +373,7 @@
           const j = await res.json();
           if (res.status === 200) {
             editModal.hide();
-            loadHistory(1,5);
+            loadHistory(1,10);
           } else {
             alert('Error: ' + (j.error || JSON.stringify(j)));
           }
@@ -381,7 +381,7 @@
       });
 
       // Movements history pagination
-      async function loadHistory(page = 1, per_page = 5) {
+      async function loadHistory(page = 1, per_page = 10) {
         const tableEl = document.getElementById('history-table');
         const metaEl = document.getElementById('history-meta');
         const pagerEl = document.getElementById('history-pagination');
@@ -475,15 +475,15 @@
       }
 
       // initial history load
-      loadHistory(1, 5);
+      loadHistory(1, 10);
 
       // wire history controls
       const historyRefresh = document.getElementById('history-refresh');
-      if (historyRefresh) historyRefresh.addEventListener('click', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 5); });
+      if (historyRefresh) historyRefresh.addEventListener('click', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 10); });
       const historyType = document.getElementById('history-type');
-      if (historyType) historyType.addEventListener('change', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 5); });
+      if (historyType) historyType.addEventListener('change', () => { const grp = document.getElementById('group-by-type') ? document.getElementById('group-by-type').checked : false; loadHistory(1, grp ? 1000 : 10); });
       const groupByChk = document.getElementById('group-by-type');
-      if (groupByChk) groupByChk.addEventListener('change', () => { const grp = groupByChk.checked; loadHistory(1, grp ? 1000 : 5); });
+      if (groupByChk) groupByChk.addEventListener('change', () => { const grp = groupByChk.checked; loadHistory(1, grp ? 1000 : 10); });
 
       // add category flow
       document.getElementById('add-cat-btn').addEventListener('click', () => { document.getElementById('new-cat-name').value = ''; catModal.show(); });
