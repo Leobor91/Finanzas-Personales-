@@ -92,10 +92,17 @@
                 if (res.status === 200) {
                     const balStr = Number(j.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     let html = `<h6>${j.account} — Saldo: $ ${balStr} ${j.currency}</h6>`;
+
+                    // quick deposit form (shown before movements)
+                    html += `<hr><form id="add-funds-form" class="row g-2"><div class="col-6"><input name="amount" id="add-amount" class="form-control" type="number" step="0.01" placeholder="Monto" required></div><div class="col-6"><input name="description" id="add-desc" class="form-control" placeholder="Descripción (opcional)"></div><div class="col-12 mt-2"><button id="add-funds-btn" class="btn btn-success btn-sm">Agregar dinero</button> <span id="add-funds-alert" class="ms-2"></span></div></form>`;
+
+                    // add transfer form placeholder (will be filled after innerHTML)
+                    html += `<div id="post-forms"></div>`;
+
                     if (!j.movements || j.movements.length === 0) {
                         html += '<div class="form-text">No hay movimientos para esta cuenta.</div>';
-                    } else {
-                        html += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th><th>Acciones</th></tr></thead><tbody>';
+                    } else {                        
+                        html += '<h6 class="mt-3">Historial de Movimientos</h6><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th><th>Acciones</th></tr></thead><tbody>';
                         for (const m of j.movements) {
                             const rowClass = m.type === 'Ingreso' ? 'table-success' : (m.type === 'Gasto' ? 'table-danger' : '');
                             const amtClass = m.type === 'Ingreso' ? 'mov-amount-positive' : (m.type === 'Gasto' ? 'mov-amount-negative' : '');
@@ -105,12 +112,6 @@
                         }
                         html += '</tbody></table></div>';
                     }
-
-                    // quick deposit form
-                    html += `<hr><form id="add-funds-form" class="row g-2"><div class="col-6"><input name="amount" id="add-amount" class="form-control" type="number" step="0.01" placeholder="Monto" required></div><div class="col-6"><input name="description" id="add-desc" class="form-control" placeholder="Descripción (opcional)"></div><div class="col-12 mt-2"><button id="add-funds-btn" class="btn btn-success btn-sm">Agregar dinero</button> <span id="add-funds-alert" class="ms-2"></span></div></form>`;
-
-                    // add transfer form placeholder (will be appended after setting innerHTML)
-                    html += `<div id="post-forms"></div>`;
 
                     el.innerHTML = html;
 
