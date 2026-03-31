@@ -173,33 +173,50 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return [dict(r) for r in rows]
 
-    def get_monthly_aggregates(self, month: str, year: str):
+    def get_monthly_aggregates(self, month: str, year: str, user_id: int | None = None):
         cur = self._conn.cursor()
-        sql = "SELECT type, SUM(amount) as total FROM movements WHERE to_char(date,'MM') = %s AND to_char(date,'YYYY') = %s GROUP BY type"
-        cur.execute(sql, (month, year))
+        sql = "SELECT type, SUM(amount) as total FROM movements WHERE to_char(date,'MM') = %s AND to_char(date,'YYYY') = %s"
+        params = [month, year]
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
+        sql += " GROUP BY type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         cur.close()
         return {r[0]: r[1] for r in rows}
 
-    def get_expenses_by_category(self, year: str = None, month: str = None):
+    def get_expenses_by_category(self, year: str = None, month: str = None, user_id: int | None = None):
         cur = self._conn.cursor()
+        params = []
         if year and month:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND to_char(date,'YYYY') = %s AND to_char(date,'MM') = %s GROUP BY category ORDER BY total DESC"
-            cur.execute(sql, (year, month))
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND to_char(date,'YYYY') = %s AND to_char(date,'MM') = %s"
+            params = [year, month]
         elif year:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND to_char(date,'YYYY') = %s GROUP BY category ORDER BY total DESC"
-            cur.execute(sql, (year,))
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND to_char(date,'YYYY') = %s"
+            params = [year]
         else:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' GROUP BY category ORDER BY total DESC"
-            cur.execute(sql)
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto'"
+
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
+
+        sql += " GROUP BY category ORDER BY total DESC"
+        cur.execute(sql, tuple(params) if params else None)
         rows = cur.fetchall()
         cur.close()
         return [{"category": r[0], "total": r[1]} for r in rows]
 
-    def get_yearly_aggregates(self, year: str):
+    def get_yearly_aggregates(self, year: str, user_id: int | None = None):
         cur = self._conn.cursor()
-        sql = "SELECT to_char(date,'MM') as m, type, SUM(amount) as total FROM movements WHERE to_char(date,'YYYY') = %s GROUP BY m, type"
-        cur.execute(sql, (year,))
+        sql = "SELECT to_char(date,'MM') as m, type, SUM(amount) as total FROM movements WHERE to_char(date,'YYYY') = %s"
+        params = [year]
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
+        sql += " GROUP BY m, type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         result = {}
         for m, t, total in rows:
@@ -216,10 +233,15 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return result
 
-    def get_daily_aggregates(self, month: str, year: str):
+    def get_daily_aggregates(self, month: str, year: str, user_id: int | None = None):
         cur = self._conn.cursor()
-        sql = "SELECT to_char(date,'DD') as d, type, SUM(amount) as total FROM movements WHERE to_char(date,'MM') = %s AND to_char(date,'YYYY') = %s GROUP BY d, type"
-        cur.execute(sql, (month, year))
+        sql = "SELECT to_char(date,'DD') as d, type, SUM(amount) as total FROM movements WHERE to_char(date,'MM') = %s AND to_char(date,'YYYY') = %s"
+        params = [month, year]
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
+        sql += " GROUP BY d, type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         result = {}
         for d, t, total in rows:
@@ -240,7 +262,7 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         cur.close()
         return result
 
-    def get_top_expenses(self, month: str, year: str, limit: int = 5, category: str = None):
+    def get_top_expenses(self, month: str, year: str, limit: int = 5, category: str = None, user_id: int | None = None):
         cur = self._conn.cursor(cursor_factory=RealDictCursor)
         sql = (
             "SELECT category, description, amount, to_char(date,'YYYY-MM-DD') as date, account "
@@ -250,6 +272,9 @@ class PostgresMovementRepository(MovementRepositoryInterface):
         if category:
             sql += " AND category = %s"
             params.append(category)
+        if user_id is not None:
+            sql += " AND user_id = %s"
+            params.append(user_id)
         sql += " ORDER BY amount DESC LIMIT %s"
         params.append(limit)
         cur.execute(sql, tuple(params))
@@ -264,9 +289,13 @@ class PostgresMovementRepository(MovementRepositoryInterface):
             pass
 
     # Categories
-    def get_categories_by_type(self, type: str):
+    def get_categories_by_type(self, type: str, user_id: int | None = None):
         cur = self._conn.cursor()
-        cur.execute("SELECT id, name, icon FROM categories WHERE type = %s ORDER BY name", (type,))
+        # Include global categories (user_id IS NULL) and user-specific ones when user_id provided.
+        if user_id is None:
+            cur.execute("SELECT id, name, icon FROM categories WHERE type = %s AND user_id IS NULL ORDER BY name", (type,))
+        else:
+            cur.execute("SELECT id, name, icon FROM categories WHERE type = %s AND (user_id IS NULL OR user_id = %s) ORDER BY name", (type, user_id))
         rows = cur.fetchall()
         cur.close()
         return [{"id": r[0], "name": r[1], "icon": r[2]} for r in rows]

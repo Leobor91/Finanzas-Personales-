@@ -139,13 +139,17 @@ def report_balance():
     year = request.args.get("year")    # YYYY
     if not month or not year:
         return jsonify({"error": "Parámetros 'month' y 'year' son requeridos (MM, YYYY)."}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
         from src.core.services.report_service import ReportService
 
         rs = ReportService(repo)
-        # include previous month's net and cumulative net for the year
-        bal = rs.monthly_with_carryover(month=month, year=year)
+        # include previous month's net and cumulative net for the year (filter by user)
+        bal = rs.monthly_with_carryover(month=month, year=year, user_id=uid)
         return jsonify(bal), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -160,12 +164,16 @@ def report_balance():
 def report_categories():
     month = request.args.get('month')
     year = request.args.get('year')
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
         from src.core.services.report_service import ReportService
 
         rs = ReportService(repo)
-        rows = rs.expenses_by_category(year=year, month=month)
+        rows = rs.expenses_by_category(year=year, month=month, user_id=uid)
         return jsonify([{"category": r.category, "total": r.total} for r in rows]), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -184,12 +192,16 @@ def report_top_expenses():
         return jsonify({"error": "Parámetros 'month' y 'year' son requeridos (MM, YYYY)."}), 400
     limit = int(request.args.get("limit", 5))
     category = request.args.get("category")
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
         from src.core.services.report_service import ReportService
 
         rs = ReportService(repo)
-        rows = rs.top_expenses(month=month, year=year, limit=limit, category=category)
+        rows = rs.top_expenses(month=month, year=year, limit=limit, category=category, user_id=uid)
         return jsonify(rows), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -201,10 +213,14 @@ def report_top_expenses():
 
 @app.route('/reports/years', methods=['GET'])
 def report_years():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
         cur = repo.conn.cursor()
-        cur.execute("SELECT DISTINCT to_char(date,'YYYY') as y FROM movements ORDER BY y DESC")
+        cur.execute("SELECT DISTINCT to_char(date,'YYYY') as y FROM movements WHERE user_id = %s ORDER BY y DESC", (uid,))
         rows = cur.fetchall()
         years = [r[0] for r in rows if r[0]]
         return jsonify(years), 200
@@ -222,11 +238,15 @@ def report_yearly():
     year = request.args.get('year')
     if not year:
         return jsonify({'error': "Parámetro 'year' requerido (YYYY)."}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
         from src.core.services.report_service import ReportService
         rs = ReportService(repo)
-        summary = rs.yearly_summary(year)
+        summary = rs.yearly_summary(year, user_id=uid)
         return jsonify(summary), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -243,9 +263,13 @@ def report_daily():
     year = request.args.get('year')
     if not month or not year:
         return jsonify({'error': "Parámetros 'month' (MM) y 'year' (YYYY) son requeridos."}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
-        rows = repo.get_daily_aggregates(month, year)
+        rows = repo.get_daily_aggregates(month, year, user_id=uid)
         return jsonify(rows), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -265,9 +289,13 @@ def report_export():
     mtype = request.args.get('type')
     if not date_from or not date_to:
         return jsonify({'error': "Parámetros 'from' y 'to' requeridos (YYYY-MM-DD)."}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
+
     repo = get_repo()
     try:
-        rows = repo.find_by_criteria(date_from=date_from, date_to=date_to, category=category, type_=mtype)
+        rows = repo.find_by_criteria(date_from=date_from, date_to=date_to, category=category, type_=mtype, user_id=uid)
         fmt = request.args.get('format', '').lower()
         # helper to parse amounts into numeric values
         def _to_number(val):
@@ -418,9 +446,12 @@ def get_categories():
     type_q = request.args.get('type')
     if type_q not in ('Ingreso', 'Gasto'):
         return jsonify({'error': "Parámetro 'type' requerido y debe ser 'Ingreso' o 'Gasto'"}), 400
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        cats = repo.get_categories_by_type(type_q)
+        cats = repo.get_categories_by_type(type_q, user_id=uid)
         return jsonify(cats), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -485,7 +516,8 @@ def get_accounts():
         return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        return jsonify(repo.list_accounts()), 200
+        # Return only accounts belonging to the authenticated user
+        return jsonify(repo.get_accounts_with_balances(user_id=uid)), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     finally:
@@ -502,7 +534,8 @@ def get_accounts_balances():
         return jsonify({'error': 'autenticación requerida'}), 401
     repo = get_repo()
     try:
-        return jsonify(repo.get_accounts_with_balances()), 200
+        # Ensure balances are returned only for the current user
+        return jsonify(repo.get_accounts_with_balances(user_id=uid)), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     finally:

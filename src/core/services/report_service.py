@@ -5,16 +5,16 @@ class ReportService:
     def __init__(self, repository):
         self.repository = repository
 
-    def monthly_balance(self, month: str, year: str) -> MonthlyBalance:
-        data = self.repository.get_monthly_aggregates(month, year)
+    def monthly_balance(self, month: str, year: str, user_id: int | None = None) -> MonthlyBalance:
+        data = self.repository.get_monthly_aggregates(month, year, user_id)
         ingresos = float(data.get("Ingreso", 0.0))
         gastos = float(data.get("Gasto", 0.0))
         return MonthlyBalance(month=month, year=year, total_ingresos=ingresos, total_gastos=gastos)
 
-    def monthly_with_carryover(self, month: str, year: str):
+    def monthly_with_carryover(self, month: str, year: str, user_id: int | None = None):
         """Return monthly totals plus previous month's net and cumulative net for the year."""
         # current month totals
-        data = self.repository.get_monthly_aggregates(month, year)
+        data = self.repository.get_monthly_aggregates(month, year, user_id)
         ingresos = float(data.get("Ingreso", 0.0))
         gastos = float(data.get("Gasto", 0.0))
         net = ingresos - gastos
@@ -33,13 +33,13 @@ class ReportService:
             prev_y = y - 1
         prev_m_s = str(prev_m).zfill(2)
         prev_y_s = str(prev_y)
-        prev_data = self.repository.get_monthly_aggregates(prev_m_s, prev_y_s)
+        prev_data = self.repository.get_monthly_aggregates(prev_m_s, prev_y_s, user_id)
         prev_ing = float(prev_data.get('Ingreso', 0.0))
         prev_gas = float(prev_data.get('Gasto', 0.0))
         prev_net = prev_ing - prev_gas
 
         # cumulative for year up to current month
-        yearly = self.repository.get_yearly_aggregates(year)
+        yearly = self.repository.get_yearly_aggregates(year, user_id)
         months = [str(i).zfill(2) for i in range(1, 13)]
         cumulative = 0.0
         for mon in months:
@@ -59,44 +59,44 @@ class ReportService:
             'cumulative_net': cumulative,
         }
 
-    def expenses_by_category(self, year: str = None, month: str = None):
+    def expenses_by_category(self, year: str = None, month: str = None, user_id: int | None = None):
         # Be flexible with repository method signature:
         # - if no year/month requested, call without args (for DummyRepo tests)
         # - otherwise try (year, month), fallback to (year), fallback to no-arg
         if year is None and month is None:
-            rows = self.repository.get_expenses_by_category()
+            rows = self.repository.get_expenses_by_category(user_id=user_id)
         else:
             try:
-                rows = self.repository.get_expenses_by_category(year, month)
+                rows = self.repository.get_expenses_by_category(year, month, user_id)
             except TypeError:
                 try:
-                    rows = self.repository.get_expenses_by_category(year)
+                    rows = self.repository.get_expenses_by_category(year, user_id=user_id)
                 except TypeError:
-                    rows = self.repository.get_expenses_by_category()
+                    rows = self.repository.get_expenses_by_category(user_id=user_id)
         # Filter out zero totals
         filtered = [r for r in rows if float(r.get('total', 0)) != 0]
         return [CategorySummary(category=r["category"], total=float(r["total"])) for r in filtered]
 
-    def top_expenses(self, month: str, year: str, limit: int = 5, category: str = None):
-        rows = self.repository.get_top_expenses(month, year, limit, category)
+    def top_expenses(self, month: str, year: str, limit: int = 5, category: str = None, user_id: int | None = None):
+        rows = self.repository.get_top_expenses(month, year, limit, category, user_id)
         # rows are dicts with category, description, amount, date
         return [
             {"category": r["category"], "description": r["description"], "amount": float(r["amount"]), "date": r["date"]}
             for r in rows
         ]
 
-    def yearly_series(self, year: str):
+    def yearly_series(self, year: str, user_id: int | None = None):
         """Return a dict with months '01'..'12' each containing totals per type."""
-        data = self.repository.get_yearly_aggregates(year)
+        data = self.repository.get_yearly_aggregates(year, user_id)
         # Ensure months sorted
         months = [str(i).zfill(2) for i in range(1,13)]
         ingresos = [float(data[m].get('Ingreso', 0.0)) for m in months]
         gastos = [float(data[m].get('Gasto', 0.0)) for m in months]
         return { 'months': months, 'ingresos': ingresos, 'gastos': gastos }
 
-    def yearly_summary(self, year: str):
+    def yearly_summary(self, year: str, user_id: int | None = None):
         """Return monthly ingresos/gastos lists, monthly net, yearly totals and expenses by category for the year."""
-        series = self.yearly_series(year)
+        series = self.yearly_series(year, user_id)
         months = series['months']
         ingresos = series['ingresos']
         gastos = series['gastos']
@@ -108,7 +108,7 @@ class ReportService:
 
         # expenses by category for the year (use wrapper to apply zero filtering)
         try:
-            cats = self.expenses_by_category(year=year)
+            cats = self.expenses_by_category(year=year, user_id=user_id)
             categories = [ { 'category': c.category, 'total': float(c.total) } for c in cats ]
         except Exception:
             categories = []
@@ -124,8 +124,8 @@ class ReportService:
             'expenses_by_category': categories,
         }
 
-    def daily_series(self, month: str, year: str):
-        data = self.repository.get_daily_aggregates(month, year)
+    def daily_series(self, month: str, year: str, user_id: int | None = None):
+        data = self.repository.get_daily_aggregates(month, year, user_id)
         # days sorted
         days = sorted(data.keys())
         ingresos = [float(data[d].get('Ingreso', 0.0)) for d in days]

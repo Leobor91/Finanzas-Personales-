@@ -184,35 +184,52 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
             })
         return results
 
-    def get_monthly_aggregates(self, month: str, year: str):
+    def get_monthly_aggregates(self, month: str, year: str, user_id: int | None = None):
         cur = self.conn.cursor()
-        sql = "SELECT type, SUM(amount) as total FROM movements WHERE strftime('%m', date) = ? AND strftime('%Y', date) = ? GROUP BY type"
-        cur.execute(sql, (month, year))
+        sql = "SELECT type, SUM(amount) as total FROM movements WHERE strftime('%m', date) = ? AND strftime('%Y', date) = ?"
+        params = [month, year]
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " GROUP BY type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         # return dict type -> total
         return {r[0]: r[1] for r in rows}
 
     
 
-    def get_expenses_by_category(self, year: str = None, month: str = None):
+    def get_expenses_by_category(self, year: str = None, month: str = None, user_id: int | None = None):
         cur = self.conn.cursor()
+        params = []
         if year and month:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND strftime('%Y', date) = ? AND strftime('%m', date) = ? GROUP BY category ORDER BY total DESC"
-            cur.execute(sql, (year, month))
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+            params = [year, month]
         elif year:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND strftime('%Y', date) = ? GROUP BY category ORDER BY total DESC"
-            cur.execute(sql, (year,))
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' AND strftime('%Y', date) = ?"
+            params = [year]
         else:
-            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto' GROUP BY category ORDER BY total DESC"
-            cur.execute(sql)
+            sql = "SELECT category, SUM(amount) as total FROM movements WHERE type = 'Gasto'"
+
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+
+        sql += " GROUP BY category ORDER BY total DESC"
+        cur.execute(sql, tuple(params) if params else ())
         rows = cur.fetchall()
         return [{"category": r[0], "total": r[1]} for r in rows]
 
-    def get_yearly_aggregates(self, year: str):
+    def get_yearly_aggregates(self, year: str, user_id: int | None = None):
         cur = self.conn.cursor()
         # We want totals per month and per type. Use strftime to extract month.
-        sql = "SELECT strftime('%m', date) as m, type, SUM(amount) as total FROM movements WHERE strftime('%Y', date) = ? GROUP BY m, type"
-        cur.execute(sql, (year,))
+        sql = "SELECT strftime('%m', date) as m, type, SUM(amount) as total FROM movements WHERE strftime('%Y', date) = ?"
+        params = [year]
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " GROUP BY m, type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         # Build dict: month -> { 'Ingreso': x, 'Gasto': y }
         result = {}
@@ -230,11 +247,16 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
                 result[key].setdefault('Gasto', 0.0)
         return result
 
-    def get_daily_aggregates(self, month: str, year: str):
+    def get_daily_aggregates(self, month: str, year: str, user_id: int | None = None):
         cur = self.conn.cursor()
         # Extract day with strftime('%d', date)
-        sql = "SELECT strftime('%d', date) as d, type, SUM(amount) as total FROM movements WHERE strftime('%m', date) = ? AND strftime('%Y', date) = ? GROUP BY d, type"
-        cur.execute(sql, (month, year))
+        sql = "SELECT strftime('%d', date) as d, type, SUM(amount) as total FROM movements WHERE strftime('%m', date) = ? AND strftime('%Y', date) = ?"
+        params = [month, year]
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " GROUP BY d, type"
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         result = {}
         for d, t, total in rows:
@@ -255,7 +277,7 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
                 result[key].setdefault('Gasto', 0.0)
         return result
 
-    def get_top_expenses(self, month: str, year: str, limit: int = 5, category: str = None):
+    def get_top_expenses(self, month: str, year: str, limit: int = 5, category: str = None, user_id: int | None = None):
         cur = self.conn.cursor()
         sql = (
             "SELECT category, description, amount, date, account "
@@ -266,6 +288,9 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         if category:
             sql += " AND category = ?"
             params.append(category)
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
         sql += " ORDER BY amount DESC LIMIT ?"
         params.append(limit)
         cur.execute(sql, tuple(params))
@@ -279,10 +304,15 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         self.conn.close()
 
     # Categories support
-    def get_categories_by_type(self, type: str):
+    def get_categories_by_type(self, type: str, user_id: int | None = None):
         cur = self.conn.cursor()
-        sql = "SELECT id, name, icon FROM categories WHERE type = ? ORDER BY name"
-        cur.execute(sql, (type,))
+        # Include global categories (user_id IS NULL) and user-specific ones when user_id provided.
+        if user_id is None:
+            sql = "SELECT id, name, icon FROM categories WHERE type = ? AND user_id IS NULL ORDER BY name"
+            cur.execute(sql, (type,))
+        else:
+            sql = "SELECT id, name, icon FROM categories WHERE type = ? AND (user_id IS NULL OR user_id = ?) ORDER BY name"
+            cur.execute(sql, (type, user_id))
         rows = cur.fetchall()
         return [{"id": r[0], "name": r[1], "icon": r[2]} for r in rows]
 
@@ -317,26 +347,33 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         self.conn.commit()
         return cur.rowcount > 0
 
-    def get_accounts_with_balances(self):
+    def get_accounts_with_balances(self, user_id: int | None = None):
         cur = self.conn.cursor()
         # Compute balance = initial_balance + sum(income) - sum(expense) per account
         sql = """
         SELECT a.name,
             a.initial_balance
-            + IFNULL((SELECT SUM(CASE WHEN m.type='Ingreso' THEN m.amount WHEN m.type='Gasto' THEN -m.amount ELSE 0 END) FROM movements m WHERE m.account = a.name), 0)
-            + IFNULL((SELECT SUM(t.amount) FROM transfers t WHERE t.to_account = a.name), 0)
-            - IFNULL((SELECT SUM(t.amount) FROM transfers t WHERE t.from_account = a.name), 0) as balance,
+            + IFNULL((SELECT SUM(CASE WHEN m.type='Ingreso' THEN m.amount WHEN m.type='Gasto' THEN -m.amount ELSE 0 END) FROM movements m WHERE m.account = a.name AND m.user_id = a.user_id), 0)
+            + IFNULL((SELECT SUM(t.amount) FROM transfers t WHERE t.to_account = a.name AND t.user_id = a.user_id), 0)
+            - IFNULL((SELECT SUM(t.amount) FROM transfers t WHERE t.from_account = a.name AND t.user_id = a.user_id), 0) as balance,
         a.currency
-        FROM accounts a ORDER BY a.name
+        FROM accounts a
         """
-        cur.execute(sql)
+        if user_id is None:
+            cur.execute(sql + " ORDER BY a.name")
+        else:
+            cur.execute(sql + " WHERE a.user_id = ? ORDER BY a.name", (user_id,))
         rows = cur.fetchall()
         return [{"name": r[0], "balance": r[1], "currency": r[2]} for r in rows]
 
-    def get_movements_by_account(self, account: str):
+    def get_movements_by_account(self, account: str, user_id: int | None = None):
         cur = self.conn.cursor()
-        sql = "SELECT id, date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = ? ORDER BY date DESC"
-        cur.execute(sql, (account,))
+        if user_id is None:
+            sql = "SELECT id, date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = ? ORDER BY date DESC"
+            cur.execute(sql, (account,))
+        else:
+            sql = "SELECT id, date, type, amount, currency, fx_rate, category, description FROM movements WHERE account = ? AND user_id = ? ORDER BY date DESC"
+            cur.execute(sql, (account, user_id))
         rows = cur.fetchall()
         results = []
         for r in rows:
@@ -456,15 +493,21 @@ class SQLiteMovementRepository(MovementRepositoryInterface):
         return [{"id": r[0], "type": r[1], "name": r[2], "icon": r[3]} for r in rows]
 
     # Denominations support
-    def add_denomination(self, value: float, label: str = None):
+    def add_denomination(self, value: float, label: str = None, user_id: int | None = None):
         cur = self.conn.cursor()
         try:
-            cur.execute("INSERT INTO denominations (value, label) VALUES (?, ?)", (value, label))
+            if user_id is not None:
+                cur.execute("INSERT INTO denominations (value, label, user_id) VALUES (?, ?, ?)", (value, label, user_id))
+            else:
+                cur.execute("INSERT INTO denominations (value, label) VALUES (?, ?)", (value, label))
             self.conn.commit()
             return cur.lastrowid
         except Exception:
             # If exists, return existing id
-            cur.execute("SELECT id FROM denominations WHERE value = ?", (value,))
+            if user_id is not None:
+                cur.execute("SELECT id FROM denominations WHERE value = ? AND user_id = ?", (value, user_id))
+            else:
+                cur.execute("SELECT id FROM denominations WHERE value = ?", (value,))
             r = cur.fetchone()
             return r[0] if r else None
 
