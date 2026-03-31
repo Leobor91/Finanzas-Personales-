@@ -28,7 +28,7 @@ CREATE_TABLES_SQL = (
         type TEXT NOT NULL CHECK (type IN ('Ingreso','Gasto')),
         name TEXT NOT NULL,
         icon TEXT,
-        UNIQUE(type, name)
+        UNIQUE(type, name, user_id)
     );
 
     CREATE TABLE IF NOT EXISTS accounts (
@@ -37,6 +37,7 @@ CREATE_TABLES_SQL = (
         initial_balance DOUBLE PRECISION NOT NULL DEFAULT 0.0,
         currency TEXT NOT NULL DEFAULT 'COP'
         , user_id INTEGER
+        , UNIQUE(name, user_id)
     );
 
     CREATE TABLE IF NOT EXISTS transfers (
@@ -102,6 +103,50 @@ class PostgresMovementRepository(MovementRepositoryInterface):
             cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS user_id INTEGER")
             cur.execute("ALTER TABLE transfers ADD COLUMN IF NOT EXISTS user_id INTEGER")
             cur.execute("ALTER TABLE denominations ADD COLUMN IF NOT EXISTS user_id INTEGER")
+            # Ensure categories unique constraint includes user_id for per-user uniqueness.
+            try:
+                # Find unique constraints on categories and drop the one over (type,name) if present,
+                # then add a unique constraint over (type,name,user_id).
+                cur.execute("SELECT conname FROM pg_constraint WHERE conrelid = 'categories'::regclass AND contype='u'")
+                ucons = [r[0] for r in cur.fetchall()]
+                for con in ucons:
+                    # Get columns for this constraint
+                    cur.execute(
+                        "SELECT a.attname FROM pg_attribute a JOIN pg_constraint c ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey) WHERE c.conname = %s",
+                        (con,)
+                    )
+                    cols = [r[0] for r in cur.fetchall()]
+                    # If it's the old (type,name) constraint, drop it
+                    if cols == ['type', 'name']:
+                        try:
+                            cur.execute(f"ALTER TABLE categories DROP CONSTRAINT IF EXISTS {con}")
+                        except Exception:
+                            pass
+                # Finally, add new unique constraint if not exists
+                cur.execute("ALTER TABLE categories ADD CONSTRAINT IF NOT EXISTS categories_type_name_userid_key UNIQUE (type, name, user_id)")
+            except Exception:
+                pass
+            # Ensure accounts unique constraint includes user_id for per-user uniqueness.
+            try:
+                cur.execute("SELECT conname FROM pg_constraint WHERE conrelid = 'accounts'::regclass AND contype='u'")
+                ucons = [r[0] for r in cur.fetchall()]
+                for con in ucons:
+                    cur.execute(
+                        "SELECT a.attname FROM pg_attribute a JOIN pg_constraint c ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey) WHERE c.conname = %s",
+                        (con,)
+                    )
+                    cols = [r[0] for r in cur.fetchall()]
+                    # If it's the old (name) constraint, drop it
+                    if cols == ['name']:
+                        try:
+                            cur.execute(f"ALTER TABLE accounts DROP CONSTRAINT IF EXISTS {con}")
+                        except Exception:
+                            pass
+                # Finally, add new unique constraint if not exists
+                cur.execute("ALTER TABLE accounts ADD CONSTRAINT IF NOT EXISTS accounts_name_userid_key UNIQUE (name, user_id)")
+            except Exception:
+                # best-effort; do not block startup if constraint migration fails
+                pass
         except Exception:
             # If DB doesn't support IF NOT EXISTS for ALTER (older PG), attempt safe checks
             try:
@@ -121,6 +166,24 @@ class PostgresMovementRepository(MovementRepositoryInterface):
                 cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='denominations' AND column_name='user_id'")
                 if not cur.fetchone():
                     cur.execute("ALTER TABLE denominations ADD COLUMN user_id INTEGER")
+                # Also attempt to add accounts unique constraint if missing (best-effort)
+                try:
+                    cur.execute("SELECT conname FROM pg_constraint WHERE conrelid = 'accounts'::regclass AND contype='u'")
+                    ucons = [r[0] for r in cur.fetchall()]
+                    for con in ucons:
+                        cur.execute(
+                            "SELECT a.attname FROM pg_attribute a JOIN pg_constraint c ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey) WHERE c.conname = %s",
+                            (con,)
+                        )
+                        cols = [r[0] for r in cur.fetchall()]
+                        if cols == ['name']:
+                            try:
+                                cur.execute(f"ALTER TABLE accounts DROP CONSTRAINT IF EXISTS {con}")
+                            except Exception:
+                                pass
+                    cur.execute("ALTER TABLE accounts ADD CONSTRAINT IF NOT EXISTS accounts_name_userid_key UNIQUE (name, user_id)")
+                except Exception:
+                    pass
             except Exception:
                 # swallow; best-effort migration
                 pass
